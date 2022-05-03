@@ -1,24 +1,15 @@
 #Utility functions for the POLIS API ETL
 
-#' Load authorizations and local config 
-#' @param file A string 
-#' @return auth/config object
-load_specs <- function(){
-  auth <- read_yaml(here('spec','auth.yaml'))
-  config <- read_yaml(here('spec','config.yaml'))
-  return(c(auth,config))
-}
- 
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder 
 #' @return A string describing the creation process or errors 
-init_polis_data_struc <- function(file = load_specs()$polis_data_folder){
+init_polis_data_struc <- function(folder, token){
   #check to see if folder exists, if not create it 
-  if(!dir.exists(file)){
-    dir.create(file)
+  if(!dir.exists(folder)){
+    dir.create(folder)
   }
   #check to see if cache directory exists, if not create it
-  cache_dir <- file.path(file, "cache_dir")
+  cache_dir <- file.path(folder, "cache_dir")
   if(!dir.exists(cache_dir)){
     dir.create(cache_dir)
   }
@@ -30,10 +21,27 @@ init_polis_data_struc <- function(file = load_specs()$polis_data_folder){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT", 
-      "latest_date"=date("2010-01-01")
+      "latest_date"=as_date("2010-01-01")
     ) %>%
       write_rds(cache_file)
   }
+  #create specs yaml 
+  specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
+  if(!file.exists(specs_yaml)){
+    yaml_out <- list()
+    yaml_out$polis$token <- token
+    yaml_out$polis_data_folder <- folder
+    write_yaml(yaml_out, specs_yaml)
+  }
+  Sys.setenv("polis_data_folder" = folder)
+}
+
+#' Load authorizations and local config 
+#' @param file A string 
+#' @return auth/config object
+load_specs <- function(folder = Sys.getenv("polis_data_folder")){
+  specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
+  return(specs)
 }
 
 #' Read cache and return information

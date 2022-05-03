@@ -12,7 +12,7 @@ load_specs <- function(){
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder 
 #' @return A string describing the creation process or errors 
-create_folder_structure <- function(file = load_specs()$polis_data_folder){
+init_polis_data_struc <- function(file = load_specs()$polis_data_folder){
   #check to see if folder exists, if not create it 
   if(!dir.exists(file)){
     dir.create(file)
@@ -26,7 +26,24 @@ create_folder_structure <- function(file = load_specs()$polis_data_folder){
   cache_file <- file.path(cache_dir, "cache.rds")
   if(!file.exists(cache_file)){
     tibble(
-      "timestamp"=date
-    )
+      "created"=Sys.time(),
+      "updated"=Sys.time(),
+      "file_type"="INIT",
+      "file_name"="INIT", 
+      "latest_date"=date("2010-01-01")
+    ) %>%
+      write_rds(cache_file)
   }
 }
+
+#' Read cache and return information
+#' @param file_name A string describing the file name for which you want information
+#' @return tibble row which can be atomically accessed
+read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
+  read_rds(cache_file) %>%
+    filter(file_name == .file_name)
+}
+
+#' Update cache and return row
+
+

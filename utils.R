@@ -37,7 +37,7 @@ init_polis_data_struc <- function(file = load_specs()$polis_data_folder){
 }
 
 #' Read cache and return information
-#' @param file_name A string describing the file name for which you want information
+#' @param .file_name A string describing the file name for which you want information
 #' @return tibble row which can be atomically accessed
 read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
   read_rds(cache_file) %>%
@@ -45,5 +45,19 @@ read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_dat
 }
 
 #' Update cache and return row
-
+#' @param .file_name A string describing the file name for which you want to update information
+#' @param .val_to_update A string describing the value to be updated 
+#' @param .val A value of the same type as the value you're replacing
+#' @return row of a tibble
+update_cache <- function(.file_name,
+                         .val_to_update,
+                         .val,
+                         cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
+                         ){
+  tmp <- read_rds(cache_file)
+  tmp[which(tmp$file_name == .file_name),.val_to_update] <- .val
+  write_rds(tmp, cache_file)
+  print("Cache updated!")
+  return(tmp[which(tmp$file_name == .file_name),])
+}
 

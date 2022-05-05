@@ -107,5 +107,63 @@ read_table_in_cache_dir <- function(folder, table_name){
 }
 
 #fx3: take the outputs from fx2 and return the structured API URL string
-create_api_url <- function(folder, table_name, updated, latest_date)
+#date_min_conv (Note: this is copied from idm_polis_api)
 
+#' @param field_name The name of the field used for date filtering.
+#' @param date_min The 10 digit string for the min date.
+#' @return String compatible with API v2 syntax.
+date_min_conv = function(field_name, date_min){
+  if(is.null(field_name) || is.null(date_min)) return(NULL)
+  paste0("(",
+         paste0(field_name, " ge DateTime'",
+                date_min, "'"),
+         ")")
+}
+
+#date_max_conv (Note: this is copied from idm_polis_api)
+
+#' @param field_name The name of the field used for date filtering.
+#' @param date_max The 10 digit string for the max date.
+#' @return String compatible with API v2 syntax.
+date_max_conv = function(field_name, date_max){
+  if(is.null(field_name) || is.null(date_max)) return(NULL)
+  paste0("(",
+         paste0(field_name, " le DateTime'",
+                date_max, "'"),
+         ")")
+}
+
+#make_url_general (Note: this is copied from idm_polis_api)
+
+#' @param field_name The date field to which to apply the date criteria, unique to each data type.
+#' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
+#' @param max_date Ten digit data string YYYY-MM-DD indicating the maximum date, default NULL.
+#' @param ... other arguments to be passed to the api
+make_url_general = function(field_name,
+                            min_date,
+                            max_date,
+                            ...){
+  
+  paste0(c(date_min_conv(field_name, min_date),
+           date_max_conv(field_name, max_date)),
+         collapse = " and ") %>% 
+    paste0(...) %>%
+    paste0("&$inlinecount=allpages")
+}
+
+
+
+create_api_url <- function(folder, table_name, updated, latest_date, field_date){
+  filter_url_conv = make_url_general(
+    field_date,
+    min_date,
+    max_date
+  )
+  token <- load_specs()$polis$token
+  my_url <<- paste0('https://extranet.who.int/polis/api/v2/',
+                  paste0(table_name, "?"),
+                  "$filter=",
+                  if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                  '&token=',token) %>%
+    httr::modify_url()
+}

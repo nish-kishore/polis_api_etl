@@ -69,3 +69,23 @@ update_cache <- function(.file_name,
   return(tmp[which(tmp$file_name == .file_name),])
 }
 
+
+#fx1: check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
+init_polis_data_table <- function(folder, table_name){
+  cache_dir <- file.path(folder, "cache_dir")
+  cache_file <- file.path(cache_dir, "cache.rds")
+  if(nrow(read_cache(.file_name = table_name)) == 0){
+    #Create cache entry  
+    readRDS(cache_file) %>%
+      bind_rows(tibble(
+        "created"=Sys.time(),
+        "updated"=Sys.time(),
+        "file_type"="rds",
+        "file_name"= table_name, 
+        "latest_date"=as_date("2010-01-01")
+      )) %>%
+      write_rds(cache_file)
+    #Create empty destination rds
+    write_rds(data.frame(matrix(ncol = 0, nrow = 0)), file.path(cache_dir, paste0(table_name, ".rds")))
+  }
+}

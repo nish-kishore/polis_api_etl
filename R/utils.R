@@ -89,3 +89,21 @@ init_polis_data_table <- function(folder, table_name){
     write_rds(data.frame(matrix(ncol = 0, nrow = 0)), file.path(cache_dir, paste0(table_name, ".rds")))
   }
 }
+
+#fx2: read cache_dir and return table-name, last-update, and latest-date to the working environment
+read_table_in_cache_dir <- function(folder, table_name){
+  cache_dir <- file.path(folder, "cache_dir")
+  cache_file <- file.path(cache_dir, "cache.rds")
+  if(nrow(read_cache(.file_name = table_name)) != 0){
+      updated <<- (readRDS(cache_file) %>%
+        filter(file_name == table_name))$latest_date %>%
+        as.Date()
+      latest_date <<- (readRDS(cache_file) %>%
+        filter(file_name == table_name))$updated %>%
+        as.Date()
+      table_name <<- (readRDS(cache_file) %>%
+                         filter(file_name == table_name))$file_name
+  }
+}
+
+

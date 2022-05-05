@@ -96,14 +96,16 @@ read_table_in_cache_dir <- function(folder, table_name){
   cache_file <- file.path(cache_dir, "cache.rds")
   if(nrow(read_cache(.file_name = table_name)) != 0){
       updated <<- (readRDS(cache_file) %>%
-        filter(file_name == table_name))$latest_date %>%
+        filter(file_name == table_name))$updated %>%
         as.Date()
       latest_date <<- (readRDS(cache_file) %>%
-        filter(file_name == table_name))$updated %>%
+        filter(file_name == table_name))$latest_date %>%
         as.Date()
       table_name <<- (readRDS(cache_file) %>%
                          filter(file_name == table_name))$file_name
   }
 }
 
+#fx3: take the outputs from fx2 and return the structured API URL string
+create_api_url <- function(folder, table_name, updated, latest_date)
 

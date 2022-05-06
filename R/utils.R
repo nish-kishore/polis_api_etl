@@ -82,7 +82,7 @@ init_polis_data_table <- function(folder, table_name){
         "updated"=Sys.time(),
         "file_type"="rds",
         "file_name"= table_name, 
-        "latest_date"=as_date("2010-01-01")
+        "latest_date"=as_date("2022-01-01")
       )) %>%
       write_rds(cache_file)
     #Create empty destination rds
@@ -154,6 +154,8 @@ make_url_general = function(field_name,
 
 
 create_api_url <- function(folder, table_name, updated, latest_date, field_date){
+  min_date <- latest_date
+  max_date <- NULL
   filter_url_conv = make_url_general(
     field_date,
     min_date,
@@ -166,4 +168,26 @@ create_api_url <- function(folder, table_name, updated, latest_date, field_date)
                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
                   '&token=',token) %>%
     httr::modify_url()
+}
+
+#fx4: Query POLIS via the API url created in fx3
+
+polis_data_pull <- function(my_url, verbose=TRUE){
+  
+  all_results = NULL
+  initial_query = my_url
+  while(!is.null(my_url)){
+    result = httr::GET(my_url)
+    result_content = httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    all_results = bind_rows(all_results,mutate_all(result_content$value,as.character))
+    my_url =result_content$odata.nextLink
+    if(verbose) cat('.')
+  }
+  if(!is.null(result_content$odata.count)){
+    if(nrow(all_results) != as.numeric(result_content$odata.count)){
+      warning(paste0('Expected ',result_content$odata.count, ' results, returned ',nrow(all_results))) 
+    }
+  }
+  attr(all_results,'query') = initial_query
+  return(all_results)
 }

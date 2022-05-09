@@ -21,7 +21,8 @@ init_polis_data_struc <- function(folder, token){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT", 
-      "latest_date"=as_date("1900-01-01")
+      "latest_date"=as_date("1900-01-01"),
+      "date_field" = "N/A"
     ) %>%
       write_rds(cache_file)
   }
@@ -83,11 +84,12 @@ init_polis_data_table <- function(table_name){
         "updated"=Sys.time(),
         "file_type"="rds",
         "file_name"= table_name, 
-        "latest_date"=as_date("1900-01-01")
+        "latest_date"=as_date("1900-01-01"),
+        "date_field" = "N/A"
       )) %>%
       write_rds(cache_file)
     #Create empty destination rds
-    write_rds(data.frame(matrix(ncol = 0, nrow = 0)), file.path(cache_dir, paste0(table_name, ".rds")))
+    write_rds(data.frame(matrix(ncol = 0, nrow = 0)), file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
 }
 
@@ -219,6 +221,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     }
   }
   attr(all_results,'query') = initial_query
+  write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   return(all_results)
 }
 
@@ -231,3 +234,71 @@ get_update_cache_dates <- function(all_results, field_date, table_name){
     updated <<- Sys.time()
 }
     
+
+#Input function using fx1:fx5
+
+#' @param folder      A string, the location of the polis data folder 
+#' @param token       A string, the token for the API
+#' @param table_name  A string, matching the POLIS name of the requested data table
+#' @param field_date  A string, the name of the variable in the requested data table used to filter API query
+#' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
+#' 
+get_polis_table <- function(folder, 
+                            token, 
+                            table_name,
+                            field_date,
+                            verbose){
+  init_polis_data_struc(folder, token)
+  
+  init_polis_data_table(table_name)
+  
+  read_table_in_cache_dir(table_name)
+  
+  create_api_url(table_name, latest_date, field_date)
+  
+  query_output <- polis_data_pull(my_url, verbose)
+  
+  get_update_cache_dates(all_results = query_output,
+                         field_date)
+  
+  update_cache(.file_name = table_name,
+               .val_to_update = "latest_date",
+               .val = latest_date,
+               cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
+  )
+  update_cache(.file_name = table_name,
+               .val_to_update = "updated",
+               .val = updated,
+               cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
+  )
+  update_cache(.file_name = table_name,
+               .val_to_update = "updated",
+               .val = updated,
+               cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
+  )
+  update_cache(.file_name = table_name,
+               .val_to_update = "date_field",
+               .val = field_date,
+               cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
+  )
+}
+
+# Example of get_polis_table:
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "Lqas",
+                field_date = "Start",
+                verbose=TRUE)
+
+
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "Synonym",
+                field_date = "CreatedDate",
+                verbose=TRUE)
+
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "EnvSample",
+                field_date = "LastUpdateDate",
+                verbose=TRUE)

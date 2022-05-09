@@ -173,15 +173,21 @@ create_api_url <- function(folder, table_name, updated, latest_date, field_date)
 #fx4: Query POLIS via the API url created in fx3
 
 polis_data_pull <- function(my_url, verbose=TRUE){
-  
-  all_results = NULL
-  initial_query = my_url
+  all_results <- NULL
+  initial_query <- my_url
+  i <- 1
   while(!is.null(my_url)){
-    result = httr::GET(my_url)
-    result_content = httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    all_results = bind_rows(all_results,mutate_all(result_content$value,as.character))
-    my_url =result_content$odata.nextLink
-    if(verbose) cat('.')
+    result <- httr::GET(my_url)
+    result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
+    table_count <- result_content$odata.count
+    my_url <- result_content$odata.nextLink
+    #Get total queries on initial pass-through
+    if(i == 1){
+      total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
+      } 
+    if(verbose) print(paste0('Completed query ', i, " of ", total_queries))
+    i <- i + 1
   }
   if(!is.null(result_content$odata.count)){
     if(nrow(all_results) != as.numeric(result_content$odata.count)){

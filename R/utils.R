@@ -71,7 +71,8 @@ update_cache <- function(.file_name,
 
 
 #fx1: check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
-init_polis_data_table <- function(folder, table_name){
+init_polis_data_table <- function(table_name){
+  folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
   if(nrow(read_cache(.file_name = table_name)) == 0){
@@ -91,7 +92,8 @@ init_polis_data_table <- function(folder, table_name){
 }
 
 #fx2: read cache_dir and return table-name, last-update, and latest-date to the working environment
-read_table_in_cache_dir <- function(folder, table_name){
+read_table_in_cache_dir <- function(table_name){
+  folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
   if(nrow(read_cache(.file_name = table_name)) != 0){
@@ -153,7 +155,10 @@ make_url_general = function(field_name,
 
 
 
-create_api_url <- function(folder, table_name, updated, latest_date, field_date){
+create_api_url <- function(table_name, latest_date, field_date){
+  table_name <<- table_name
+  latest_date <<- latest_date
+  field_date <<- field_date
   min_date <- latest_date
   max_date <- NULL
   filter_url_conv = make_url_general(
@@ -176,6 +181,9 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   all_results <- NULL
   initial_query <- my_url
   i <- 1
+  
+  #Check if field_date selected has missing values that will be excluded from query, and notify user
+
   while(!is.null(my_url)){
     cycle_start <- Sys.time()
     result <- httr::GET(my_url)
@@ -189,6 +197,18 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       } 
     cycle_end <- Sys.time()
     cycle_time <- round(as.numeric(cycle_end - cycle_start), 1)
+    if(latest_date == "1900-01-01" & i == 1){
+      my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                         paste0(table_name, "?"),
+                        "$inlinecount=allpages&$top=0",
+                        '&token=',token) 
+      result2 <- httr::GET(my_url2)
+      result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      table_count2 <- result_content2$odata.count
+      if(as.numeric(table_count2) > as.numeric(table_count)){
+        warning(print(paste0("The selected field date ('", field_date, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
+      }
+    }
     if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
   }
@@ -202,4 +222,4 @@ polis_data_pull <- function(my_url, verbose=TRUE){
 }
 
 # fx5: calculates new last-update and latest-date and enters it into the cache
-fx5 <- function()
+# fx5 <- function()

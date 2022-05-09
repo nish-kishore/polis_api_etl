@@ -199,7 +199,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
       } 
     cycle_end <- Sys.time()
-    cycle_time <- round(as.numeric(cycle_end - cycle_start), 1)
+    cycle_time <- round(as.numeric(difftime(cycle_end, cycle_start, units="secs")), 1)
     if(latest_date == "1900-01-01" & i == 1){
       my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                          paste0(table_name, "?"),
@@ -283,7 +283,7 @@ get_polis_table <- function(folder,
   )
 }
 
-# Example of get_polis_table:
+# Examples of get_polis_table:
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Lqas",

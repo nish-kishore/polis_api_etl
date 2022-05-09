@@ -21,7 +21,7 @@ init_polis_data_struc <- function(folder, token){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT", 
-      "latest_date"=as_date("2010-01-01")
+      "latest_date"=as_date("1900-01-01")
     ) %>%
       write_rds(cache_file)
   }
@@ -82,7 +82,7 @@ init_polis_data_table <- function(folder, table_name){
         "updated"=Sys.time(),
         "file_type"="rds",
         "file_name"= table_name, 
-        "latest_date"=as_date("2022-01-01")
+        "latest_date"=as_date("1900-01-01")
       )) %>%
       write_rds(cache_file)
     #Create empty destination rds
@@ -177,6 +177,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   initial_query <- my_url
   i <- 1
   while(!is.null(my_url)){
+    cycle_start <- Sys.time()
     result <- httr::GET(my_url)
     result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
@@ -186,7 +187,9 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     if(i == 1){
       total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
       } 
-    if(verbose) print(paste0('Completed query ', i, " of ", total_queries))
+    cycle_end <- Sys.time()
+    cycle_time <- round(as.numeric(cycle_end - cycle_start), 1)
+    if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
   }
   if(!is.null(result_content$odata.count)){
@@ -197,3 +200,6 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   attr(all_results,'query') = initial_query
   return(all_results)
 }
+
+# fx5: calculates new last-update and latest-date and enters it into the cache
+fx5 <- function()

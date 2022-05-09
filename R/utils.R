@@ -178,6 +178,7 @@ create_api_url <- function(table_name, latest_date, field_date){
 #fx4: Query POLIS via the API url created in fx3
 
 polis_data_pull <- function(my_url, verbose=TRUE){
+  token <- load_specs()$polis$token
   all_results <- NULL
   initial_query <- my_url
   i <- 1
@@ -221,5 +222,12 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   return(all_results)
 }
 
-# fx5: calculates new last-update and latest-date and enters it into the cache
-# fx5 <- function()
+# fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
+get_update_cache_dates <- function(all_results, field_date, table_name){
+    temp <- all_results %>%
+      select(field_date) %>%
+      mutate(field_date = as.Date(field_date, "%Y-%m-%d"))
+    latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
+    updated <<- Sys.time()
+}
+    

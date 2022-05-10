@@ -72,7 +72,7 @@ update_cache <- function(.file_name,
 
 
 #fx1: check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
-init_polis_data_table <- function(table_name){
+init_polis_data_table <- function(table_name, field_name){
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
@@ -85,7 +85,7 @@ init_polis_data_table <- function(table_name){
         "file_type"="rds",
         "file_name"= table_name, 
         "latest_date"=as_date("1900-01-01"),
-        "date_field" = "N/A"
+        "date_field" = field_name
       )) %>%
       write_rds(cache_file)
     #Create empty destination rds
@@ -99,15 +99,18 @@ read_table_in_cache_dir <- function(table_name){
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
   if(nrow(read_cache(.file_name = table_name)) != 0){
-      updated <<- (readRDS(cache_file) %>%
+      updated <- (readRDS(cache_file) %>%
         filter(file_name == table_name))$updated %>%
         as.Date()
-      latest_date <<- (readRDS(cache_file) %>%
+      latest_date <- (readRDS(cache_file) %>%
         filter(file_name == table_name))$latest_date %>%
         as.Date()
-      table_name <<- (readRDS(cache_file) %>%
+      table_name <- (readRDS(cache_file) %>%
                          filter(file_name == table_name))$file_name
+      field_name <- (readRDS(cache_file) %>%
+                       filter(file_name == table_name))$date_field
   }
+  return(list = list("updated" = updated, "latest_date" = latest_date, "field_name" = field_name))
 }
 
 #fx3: take the outputs from fx2 and return the structured API URL string
@@ -116,7 +119,7 @@ read_table_in_cache_dir <- function(table_name){
 #' @param field_name The name of the field used for date filtering.
 #' @param date_min The 10 digit string for the min date.
 #' @return String compatible with API v2 syntax.
-date_min_conv = function(field_name, date_min){
+date_min_conv <- function(field_name, date_min){
   if(is.null(field_name) || is.null(date_min)) return(NULL)
   paste0("(",
          paste0(field_name, " ge DateTime'",
@@ -129,7 +132,7 @@ date_min_conv = function(field_name, date_min){
 #' @param field_name The name of the field used for date filtering.
 #' @param date_max The 10 digit string for the max date.
 #' @return String compatible with API v2 syntax.
-date_max_conv = function(field_name, date_max){
+date_max_conv <- function(field_name, date_max){
   if(is.null(field_name) || is.null(date_max)) return(NULL)
   paste0("(",
          paste0(field_name, " le DateTime'",
@@ -143,7 +146,7 @@ date_max_conv = function(field_name, date_max){
 #' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
 #' @param max_date Ten digit data string YYYY-MM-DD indicating the maximum date, default NULL.
 #' @param ... other arguments to be passed to the api
-make_url_general = function(field_name,
+make_url_general <- function(field_name,
                             min_date,
                             max_date,
                             ...){
@@ -157,24 +160,26 @@ make_url_general = function(field_name,
 
 
 
-create_api_url <- function(table_name, latest_date, field_date){
+create_api_url <- function(table_name, latest_date, field_name){
   table_name <<- table_name
   latest_date <<- latest_date
-  field_date <<- field_date
+  field_name <<- field_name
   min_date <- latest_date
   max_date <- NULL
-  filter_url_conv = make_url_general(
-    field_date,
+  filter_url_conv <- make_url_general(
+    field_name,
     min_date,
     max_date
   )
   token <- load_specs()$polis$token
-  my_url <<- paste0('https://extranet.who.int/polis/api/v2/',
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
                   paste0(table_name, "?"),
                   "$filter=",
                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
                   '&token=',token) %>%
     httr::modify_url()
+  
+  return(my_url)
 }
 
 #fx4: Query POLIS via the API url created in fx3
@@ -185,7 +190,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   initial_query <- my_url
   i <- 1
   
-  #Check if field_date selected has missing values that will be excluded from query, and notify user
+  #Check if field_name selected has missing values that will be excluded from query, and notify user
 
   while(!is.null(my_url)){
     cycle_start <- Sys.time()
@@ -209,7 +214,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
       table_count2 <- result_content2$odata.count
       if(as.numeric(table_count2) > as.numeric(table_count)){
-        warning(print(paste0("The selected field date ('", field_date, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
+        warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
       }
     }
     if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
@@ -226,10 +231,10 @@ polis_data_pull <- function(my_url, verbose=TRUE){
 }
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
-get_update_cache_dates <- function(all_results, field_date, table_name){
+get_update_cache_dates <- function(all_results, field_name, table_name){
     temp <- all_results %>%
-      select(field_date) %>%
-      mutate(field_date = as.Date(field_date, "%Y-%m-%d"))
+      select(field_name) %>%
+      mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
     updated <<- Sys.time()
 }
@@ -240,26 +245,25 @@ get_update_cache_dates <- function(all_results, field_date, table_name){
 #' @param folder      A string, the location of the polis data folder 
 #' @param token       A string, the token for the API
 #' @param table_name  A string, matching the POLIS name of the requested data table
-#' @param field_date  A string, the name of the variable in the requested data table used to filter API query
+#' @param field_name  A string, the name of the variable in the requested data table used to filter API query
 #' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
 #' 
-get_polis_table <- function(folder, 
-                            token, 
+get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use load_specs() 
+                            token = load_specs()$polis$token, 
                             table_name,
-                            field_date,
+                            field_name,
                             verbose){
-  init_polis_data_struc(folder, token)
+  #init_polis_data_struc(folder, token)
   
   init_polis_data_table(table_name)
   
-  read_table_in_cache_dir(table_name)
+  x <- read_table_in_cache_dir(table_name)
   
-  create_api_url(table_name, latest_date, field_date)
-  
-  query_output <- polis_data_pull(my_url, verbose)
+  query_output <- polis_data_pull(my_url = create_api_url(table_name, x$latest_date, x$field_name), 
+                                  verbose)
   
   get_update_cache_dates(all_results = query_output,
-                         field_date)
+                         field_name)
   
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
@@ -278,7 +282,7 @@ get_polis_table <- function(folder,
   )
   update_cache(.file_name = table_name,
                .val_to_update = "date_field",
-               .val = field_date,
+               .val = field_name,
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
 }
@@ -287,18 +291,18 @@ get_polis_table <- function(folder,
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Lqas",
-                field_date = "Start",
+                field_name = "Start",
                 verbose=TRUE)
 
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Synonym",
-                field_date = "CreatedDate",
+                field_name = "CreatedDate",
                 verbose=TRUE)
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "EnvSample",
-                field_date = "LastUpdateDate",
+                field_name = "LastUpdateDate",
                 verbose=TRUE)

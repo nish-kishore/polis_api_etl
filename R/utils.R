@@ -278,6 +278,82 @@ get_polis_metadata <- function(all_results,
   write_rds(table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))  
     }
 
+#read metadata from cache and compare to new file
+read_table_metadata <- function(table_name){
+  table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+}
+#Compare metadata of newly pulled dataset to cached metadata
+compare_metadata <- function(all_results,
+                             table_metadata){
+  
+  #get new metadata
+    #summarise var names and classes
+    all_results <- all_results %>%
+      filter(SiteStatus != "INACTIVE") %>%
+      mutate(SiteStatus = case_when(SiteStatus == "ACTIVE" ~ "TESTING",
+                                    TRUE ~ SiteStatus)) 
+    var_name_class <- skimr::skim(all_results) %>% 
+      select(skim_type, skim_variable, character.n_unique) %>%
+      rename(new_var_name = skim_variable,
+             new_var_class = skim_type)
+    
+    #categorical sets
+    categorical_vars <- all_results %>%
+      select(var_name_class$new_var_name[var_name_class$character.n_unique <= 30]) %>%
+      pivot_longer(cols=everything(), names_to="new_var_name", values_to = "new_response") %>%
+      distinct() %>%
+      pivot_wider(names_from=new_var_name, values_from=new_response, values_fn = list) %>%
+      pivot_longer(cols=everything(), names_to="new_var_name", values_to="new_categorical_response_set")
+  
+    new_metadata <- var_name_class %>%
+      select(-character.n_unique) %>%
+      left_join(categorical_vars, by=c("new_var_name"))
+    
+    #compare to old metadata
+    compare_metadata <- table_metadata %>%
+      full_join(new_metadata, by=c("var_name" = "new_var_name"))
+    
+    new_vars <- (compare_metadata %>%
+      filter(is.na(var_class)))$var_name
+    if(nrow(new_vars) != 0){
+      new_vars <<- new_vars
+      warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
+    }
+      
+    lost_vars <- (compare_metadata %>%
+      filter(is.na(new_var_class)))$var_name
+    if(nrow(lost_vars) != 0){
+      lost_vars <<- lost_vars
+      warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
+    }
+    
+    class_changed_vars <- compare_metadata %>%
+      filter(var_class != new_var_class &
+               !(var_class %in% new_vars) &
+               !(var_class %in% lost_vars)) %>%
+      select(-c(categorical_response_set, new_categorical_response_set)) %>%
+      rename(old_var_class = var_class)
+    
+    new_response <- compare_metadata %>%
+      filter(!(var_name %in% class_changed_vars$old_var_class) &
+             !(var_class %in% new_vars) &
+             !(var_class %in% lost_vars)) %>%
+      rowwise() %>%
+      mutate(same = toString(intersect(categorical_response_set, new_categorical_response_set)),
+             in_old_not_new = toString(setdiff(categorical_response_set, new_categorical_response_set)),
+             in_new_not_old = toString(setdiff(new_categorical_response_set, categorical_response_set))) %>%
+      filter(in_new_not_old != "") %>%
+      rename(old_categorical_response_set = categorical_response_set) %>%
+      select(var_name, old_categorical_response_set, new_categorical_response_set, same, in_old_not_new, in_new_not_old)
+    
+    if(nrow(new_response) != 0){
+      new_response <<- new_response
+      warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
+    }
+    
+}
+
+
 #Input function using fx1:fx5
 
 #' @param folder      A string, the location of the polis data folder 

@@ -253,9 +253,9 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
                             table_name,
                             field_name,
                             verbose){
-  #init_polis_data_struc(folder, token)
+  init_polis_data_struc(folder, token)
   
-  init_polis_data_table(table_name)
+  init_polis_data_table(table_name, field_name)
   
   x <- read_table_in_cache_dir(table_name)
   
@@ -287,13 +287,98 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
   )
 }
 
+#fx4 with multicore: Query POLIS via the API url created in fx3 using parallel queries and multicore processing
+polis_data_pull_single_cycle <- function(my_url_cycle){
+  result <- httr::GET(my_url_cycle)
+  result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+  cycle_results <- mutate_all(result_content$value,as.character)
+  return(cycle_results)
+}
+
+#Polis_data_pull_multicore is meant to replace "polis_data_pull" function, once it is working
+polis_data_pull_multicore <- function(my_url, verbose=TRUE){
+  token <- load_specs()$polis$token
+  all_results <- NULL
+  initial_query <- my_url
+  # numCores <- parallel::detectCores()
+  #get cycle size and table size
+  result <- httr::GET(my_url)
+  result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+  cycle_size <- nrow(result_content$value)
+  table_size <- as.numeric(result_content$odata.count)
+  my_url_with_skip <- gsub("(?<=skip=)[^||]*", "", result_content$odata.nextLink, perl = TRUE)
+  
+  #get list of query urls
+  iteration <- 1
+  cycle_list <- NULL
+  for(i in seq(from=0, to=table_size, by=cycle_size)){
+    start_record <- i
+    if(iteration == 1){
+      cycle_url <- my_url
+    }
+    if(iteration != 1){
+      cycle_url <- paste0(my_url_with_skip, start_record)
+    }
+    cycle <- c(iteration = iteration, start_record = start_record, cycle_url = cycle_url)
+    cycle_list <- cycle_list %>%
+      bind_rows(cycle)
+    iteration <- iteration + 1
+  }
+  
+  #run query in parallel
+  closeAllConnections()
+  library("parallel")
+  no_cores <- detectCores()
+  library("foreach")
+  cl<-makeCluster(no_cores)
+  library("doSNOW")
+  registerDoSNOW(cl)
+
+  # With "%do%", this loop runs fine, but "%dopar%" fails. Unclear why so far.
+  # all_results <- foreach(i=1:nrow(cycle_list), .combine='rbind') %do% {
+  all_results <- foreach(i=1:nrow(cycle_list), .combine='rbind', .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
+    cycle_result <- polis_data_pull_single_cycle(cycle_list$cycle_url[i])
+    print(i)
+    return(cycle_result)
+  }
+  #Check if field_name selected has missing values that will be excluded from query, and notify user
+  stopCluster(cl)
+  
+     if(latest_date == "1900-01-01"){
+      my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                         paste0(table_name, "?"),
+                         "$inlinecount=allpages&$top=0",
+                         '&token=',token) 
+      result2 <- httr::GET(my_url2)
+      result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      table_count2 <- result_content2$odata.count
+      if(as.numeric(table_count2) > as.numeric(table_size)){
+        warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
+      }
+    }
+  if(!is.null(table_size)){
+    if(nrow(all_results) != as.numeric(table_size)){
+      warning(paste0('Expected ',table_size, ' results, returned ',nrow(all_results))) 
+    }
+  }
+  attr(all_results,'query') = initial_query
+  write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+  return(all_results)
+}
+
+
+
 # Examples of get_polis_table:
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Lqas",
-                field_name = "Start",
-                verbose=TRUE)
-
+                field_name = "Start")
+# ,
+#                 verbose=TRUE)
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "EnvSample",
+                field_name = "LastUpdateDate")
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
@@ -301,8 +386,5 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 field_name = "CreatedDate",
                 verbose=TRUE)
 
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "EnvSample",
-                field_name = "LastUpdateDate",
+,
                 verbose=TRUE)

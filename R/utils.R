@@ -190,7 +190,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   initial_query <- my_url
   i <- 1
   
-  #Check if field_name selected has missing values that will be excluded from query, and notify user
+  #Check if field_name selected has missing values that will be excluded from the initial query, and notify user and pull them in via subsequent query of null field_name
 
   while(!is.null(my_url)){
     cycle_start <- Sys.time()
@@ -205,30 +205,41 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       } 
     cycle_end <- Sys.time()
     cycle_time <- round(as.numeric(difftime(cycle_end, cycle_start, units="secs")), 1)
-    if(latest_date == "1900-01-01" & i == 1){
-      my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
-                         paste0(table_name, "?"),
-                        "$inlinecount=allpages&$top=0",
-                        '&token=',token) 
-      result2 <- httr::GET(my_url2)
-      result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-      table_count2 <- result_content2$odata.count
-      if(as.numeric(table_count2) > as.numeric(table_count)){
-        warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
-      }
-    }
     if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
   }
-  if(!is.null(result_content$odata.count)){
-    if(nrow(all_results) != as.numeric(result_content$odata.count)){
-      warning(paste0('Expected ',result_content$odata.count, ' results, returned ',nrow(all_results))) 
+  #Get full table size
+    my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                       paste0(table_name, "?"),
+                       "$inlinecount=allpages&$top=0",
+                       '&token=',token) 
+    result2 <- httr::GET(my_url2)
+    result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    table_count2 <- result_content2$odata.count
+  #If full table size is greater than what's been pulled, then pull in missing field_name rows and alert user
+  if(as.numeric(table_count2) > as.numeric(nrow(all_results))){
+    warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These are included in the dataset.")))
+    my_url3 <- paste0('https://extranet.who.int/polis/api/v2/',
+                      paste0(table_name, "?"),
+                      "$filter=",
+                      "(LastUpdateDate eq null)&$inlinecount=allpages",
+                      '&token=',token) %>%
+      httr::modify_url()
+    while(!is.null(my_url3)){
+      result_na <- httr::GET(my_url3)
+      result_na_content <- httr::content(result_na,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      all_results <- bind_rows(all_results,mutate_all(result_na_content$value,as.character))
+      my_url3 <- result_na_content$odata.nextLink
     }
-  }
+  if(nrow(all_results) != as.numeric(table_count2)){
+      warning(paste0('Expected ',table_count2, ' results, returned ',nrow(all_results))) 
+    }
   attr(all_results,'query') = initial_query
   write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   return(all_results)
+  }
 }
+
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(all_results, field_name, table_name){

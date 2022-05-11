@@ -2,4 +2,5 @@
 #' @import tidyverse
 #' @import lubridate
 #' @import httr
+#' @import jsonlite
 NULL

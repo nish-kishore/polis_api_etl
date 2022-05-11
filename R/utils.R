@@ -253,9 +253,9 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
                             table_name,
                             field_name,
                             verbose){
-  #init_polis_data_struc(folder, token)
+  init_polis_data_struc(folder, token)
   
-  init_polis_data_table(table_name)
+  init_polis_data_table(table_name, field_name)
   
   x <- read_table_in_cache_dir(table_name)
   

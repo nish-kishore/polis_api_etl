@@ -190,15 +190,14 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   initial_query <- my_url
   i <- 1
   
-  #Check if field_name selected has missing values that will be excluded from the initial query, and notify user and pull them in via subsequent query of null field_name
-
+  #loop through the while loop, with each iteration pulling 2000 rows via API, then getting the next URL
   while(!is.null(my_url)){
     cycle_start <- Sys.time()
-    result <- httr::GET(my_url)
+    result <- httr::GET(my_url) 
     result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
     table_count <- result_content$odata.count
-    my_url <- result_content$odata.nextLink
+    my_url <- result_content$odata.nextLink #Get the next URL (e.g. URL + skip=2000) and return to start of while loop
     #Get total queries on initial pass-through
     if(i == 1){
       total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
@@ -208,7 +207,8 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
   }
-  #Get full table size
+  
+  #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
                        "$inlinecount=allpages&$top=0",
@@ -216,6 +216,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- result_content2$odata.count
+
   #If full table size is greater than what's been pulled, then pull in missing field_name rows and alert user
   if(as.numeric(table_count2) > as.numeric(nrow(all_results))){
     warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These are included in the dataset.")))
@@ -250,6 +251,30 @@ get_update_cache_dates <- function(all_results, field_name, table_name){
     updated <<- Sys.time()
 }
     
+#Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
+get_polis_metadata <- function(all_results,
+                               table_name,
+                               field_name
+                               ){
+
+  #summarise var names and classes
+  var_name_class <- skimr::skim(all_results) %>% 
+    select(skim_type, skim_variable, character.n_unique) %>%
+    rename(var_name = skim_variable,
+           var_class = skim_type)
+  
+  #categorical sets
+  categorical_vars <- all_results %>%
+    select(var_name_class$var_name[var_name_class$character.n_unique <= 30]) %>%
+    pivot_longer(cols=everything(), names_to="var_name", values_to = "response") %>%
+    distinct() %>%
+    pivot_wider(names_from=var_name, values_from=response, values_fn = list) %>%
+    pivot_longer(cols=everything(), names_to="var_name", values_to="categorical_response_set")
+  
+  table_metadata <- var_name_class %>%
+    select(-character.n_unique) %>%
+    left_join(categorical_vars, by=c("var_name"))
+  }
 
 #Input function using fx1:fx5
 

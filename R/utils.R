@@ -236,11 +236,35 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       warning(paste0('Expected ',table_count2, ' results, returned ',nrow(all_results))) 
     }
   attr(all_results,'query') = initial_query
-  write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+  # write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   return(all_results)
   }
 }
 
+append_and_save <- function(all_results,
+                            id_vars,
+                            table_name){
+  old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+      #remove records that are in new file
+      anti_join(all_results, by=id_vars) 
+  
+  #check that the combined total row number matches POLIS table row number before appending
+    #Get full table size for comparison to what was pulled via API, saved as "table_count2"
+    my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                       paste0(table_name, "?"),
+                       "$inlinecount=allpages&$top=0",
+                       '&token=',token) 
+    result2 <- httr::GET(my_url2)
+    result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    table_count2 <- result_content2$odata.count
+  if(table_count2 == nrow(old_polis) + nrow(all_results)){
+    all_results <- all_results %>%
+      bind_rows(old_polis)
+  }
+  if(table_count2 != nrow(old_polis) + nrow(all_results)){
+      stop("Table is incomplete: check id_vars and field_name")
+  }
+}
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(all_results, field_name, table_name){

@@ -274,7 +274,9 @@ get_polis_metadata <- function(all_results,
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
     left_join(categorical_vars, by=c("var_name"))
-  }
+  
+  write_rds(table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))  
+    }
 
 #Input function using fx1:fx5
 

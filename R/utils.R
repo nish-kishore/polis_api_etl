@@ -315,14 +315,15 @@ compare_metadata <- function(all_results,
     
     new_vars <- (compare_metadata %>%
       filter(is.na(var_class)))$var_name
-    if(nrow(new_vars) != 0){
+    if(length(new_vars) != 0){
       new_vars <<- new_vars
       warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
     }
       
     lost_vars <- (compare_metadata %>%
       filter(is.na(new_var_class)))$var_name
-    if(nrow(lost_vars) != 0){
+    
+    if(length(lost_vars) != 0){
       lost_vars <<- lost_vars
       warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
     }
@@ -333,6 +334,11 @@ compare_metadata <- function(all_results,
                !(var_class %in% lost_vars)) %>%
       select(-c(categorical_response_set, new_categorical_response_set)) %>%
       rename(old_var_class = var_class)
+    
+    if(nrow(class_changed_vars) != 0){
+      class_changed_vars <<- class_changed_vars
+      warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
+    }
     
     new_response <- compare_metadata %>%
       filter(!(var_name %in% class_changed_vars$old_var_class) &
@@ -351,6 +357,14 @@ compare_metadata <- function(all_results,
       warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
     }
     
+    #Create an inidicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
+    re_pull_polis_indicator <<- FALSE
+    if(nrow(new_response) != 0 |
+       nrow(class_changed_vars) != 0 |
+       length(lost_vars) != 0 |
+       length(new_vars) != 0){
+      re_pull_polis_indicator <<- TRUE
+    }
 }
 
 

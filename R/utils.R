@@ -242,7 +242,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
 }
 
 append_and_save <- function(all_results,
-                            id_vars,
+                            id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
                             table_name){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
       #remove records that are in new file

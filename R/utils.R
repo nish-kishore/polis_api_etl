@@ -211,7 +211,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
       } 
     cycle_end <- Sys.time()
     cycle_time <- round(as.numeric(difftime(cycle_end, cycle_start, units="secs")), 1)
-    if(verbose) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
+    if(verbose == TRUE) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
   }
   
@@ -219,32 +219,34 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
                        "$inlinecount=allpages&$top=0",
-                       '&token=',token) 
+                       '&token=',load_specs()$polis$token) %>%
+                httr::modify_url()
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- result_content2$odata.count
 
-  #If full table size is greater than what's been pulled, then pull in missing field_name rows and alert user
+  #If full table size is greater than what's been pulled, then pull in missing field_name rows
   if(as.numeric(table_count2) > as.numeric(nrow(all_results))){
-    warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These are included in the dataset.")))
     my_url3 <- paste0('https://extranet.who.int/polis/api/v2/',
                       paste0(table_name, "?"),
-                      "$filter=",
-                      "(LastUpdateDate eq null)&$inlinecount=allpages",
-                      '&token=',token) %>%
+                      "$filter=(",
+                      field_name,
+                      " eq null)&$inlinecount=allpages",
+                      '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
     while(!is.null(my_url3)){
       result_na <- httr::GET(my_url3)
       result_na_content <- httr::content(result_na,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      if(!is.null(nrow(result_na_content$value))) {
       all_results <- bind_rows(all_results,mutate_all(result_na_content$value,as.character))
       my_url3 <- result_na_content$odata.nextLink
-    }
-  if(nrow(all_results) != as.numeric(table_count2)){
-      warning(paste0('Expected ',table_count2, ' results, returned ',nrow(all_results))) 
+      }
+      if(is.null(nrow(result_na_content$value))) {
+        my_url3 <- NULL
+      }
     }
   }
   attr(all_results,'query') = initial_query
-  # write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   return(all_results)
 }
 
@@ -261,7 +263,8 @@ append_and_save <- function(query_output = query_output,
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
                        "$inlinecount=allpages&$top=0",
-                       '&token=',token) 
+                       '&token=',load_specs()$polis$token) %>%
+      httr::modify_url()
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
@@ -415,8 +418,8 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
                             token = load_specs()$polis$token, 
                             table_name,
                             field_name,
-                            verbose,
-                            id_vars){
+                            verbose = TRUE,
+                            id_vars = "Id"){
   init_polis_data_struc(folder, token)
   
   init_polis_data_table(table_name, field_name)
@@ -424,7 +427,7 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
   x <- read_table_in_cache_dir(table_name)
   
   query_output <- polis_data_pull(my_url = create_api_url(table_name, x$latest_date, x$field_name), 
-                                  verbose)
+                                  verbose = TRUE)
   
   append_and_save(query_output = query_output,
                   table_name = table_name,

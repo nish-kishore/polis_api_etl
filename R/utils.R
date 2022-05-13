@@ -242,18 +242,19 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   if(nrow(all_results) != as.numeric(table_count2)){
       warning(paste0('Expected ',table_count2, ' results, returned ',nrow(all_results))) 
     }
+  }
   attr(all_results,'query') = initial_query
   # write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   return(all_results)
-  }
 }
 
-append_and_save <- function(all_results,
-                            id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
-                            table_name){
+append_and_save <- function(query_output = query_output,
+                            id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
+                            table_name = table_name){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+                mutate_all(.,as.character) %>%
       #remove records that are in new file
-      anti_join(all_results, by=id_vars) 
+      anti_join(query_output, by=id_vars) 
   
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
@@ -263,39 +264,41 @@ append_and_save <- function(all_results,
                        '&token=',token) 
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    table_count2 <- result_content2$odata.count
-  if(table_count2 == nrow(old_polis) + nrow(all_results)){
-    all_results <- all_results %>%
+    table_count2 <- as.numeric(result_content2$odata.count)
+  if(table_count2 == nrow(old_polis) + nrow(query_output)){
+    query_output <- query_output %>%
       bind_rows(old_polis)
+    write_rds(query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
-  if(table_count2 != nrow(old_polis) + nrow(all_results)){
+  if(table_count2 != nrow(old_polis) + nrow(query_output)){
       stop("Table is incomplete: check id_vars and field_name")
   }
 }
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
-get_update_cache_dates <- function(all_results, field_name, table_name){
-    temp <- all_results %>%
-      select(field_name) %>%
+get_update_cache_dates <- function(query_output, field_name, table_name){
+    temp <- query_output %>%
+      select(all_of(field_name)) %>%
+      rename(field_name = 1) %>%
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
     updated <<- Sys.time()
 }
     
 #Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
-get_polis_metadata <- function(all_results,
+get_polis_metadata <- function(query_output,
                                table_name,
                                field_name
                                ){
 
   #summarise var names and classes
-  var_name_class <- skimr::skim(all_results) %>% 
+  var_name_class <- skimr::skim(query_output) %>% 
     select(skim_type, skim_variable, character.n_unique) %>%
     rename(var_name = skim_variable,
            var_class = skim_type)
   
   #categorical sets
-  categorical_vars <- all_results %>%
+  categorical_vars <- query_output %>%
     select(var_name_class$var_name[var_name_class$character.n_unique <= 30]) %>%
     pivot_longer(cols=everything(), names_to="var_name", values_to = "response") %>%
     distinct() %>%
@@ -314,22 +317,22 @@ read_table_metadata <- function(table_name){
   table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
 }
 #Compare metadata of newly pulled dataset to cached metadata
-compare_metadata <- function(all_results,
+compare_metadata <- function(query_output,
                              table_metadata){
   
   #get new metadata
     #summarise var names and classes
-    all_results <- all_results %>%
+  query_output <- query_output %>%
       filter(SiteStatus != "INACTIVE") %>%
       mutate(SiteStatus = case_when(SiteStatus == "ACTIVE" ~ "TESTING",
                                     TRUE ~ SiteStatus)) 
-    var_name_class <- skimr::skim(all_results) %>% 
+    var_name_class <- skimr::skim(query_output) %>% 
       select(skim_type, skim_variable, character.n_unique) %>%
       rename(new_var_name = skim_variable,
              new_var_class = skim_type)
     
     #categorical sets
-    categorical_vars <- all_results %>%
+    categorical_vars <- query_output %>%
       select(var_name_class$new_var_name[var_name_class$character.n_unique <= 30]) %>%
       pivot_longer(cols=everything(), names_to="new_var_name", values_to = "new_response") %>%
       distinct() %>%
@@ -406,12 +409,14 @@ compare_metadata <- function(all_results,
 #' @param table_name  A string, matching the POLIS name of the requested data table
 #' @param field_name  A string, the name of the variable in the requested data table used to filter API query
 #' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
+#' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
 #' 
 get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use load_specs() 
                             token = load_specs()$polis$token, 
                             table_name,
                             field_name,
-                            verbose){
+                            verbose,
+                            id_vars){
   init_polis_data_struc(folder, token)
   
   init_polis_data_table(table_name, field_name)
@@ -421,8 +426,13 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
   query_output <- polis_data_pull(my_url = create_api_url(table_name, x$latest_date, x$field_name), 
                                   verbose)
   
-  get_update_cache_dates(all_results = query_output,
-                         field_name)
+  append_and_save(query_output = query_output,
+                  table_name = table_name,
+                  id_vars = id_vars)
+  
+  get_update_cache_dates(query_output = query_output,
+                         field_name = field_name,
+                         table_name = table_name)
   
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
@@ -451,6 +461,7 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Lqas",
                 field_name = "Start",
+                id_vars = "Id",
                 verbose=TRUE)
 
 
@@ -458,16 +469,19 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Synonym",
                 field_name = "CreatedDate",
+                id_vars = "Id",
                 verbose=TRUE)
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "EnvSample",
                 field_name = "LastUpdateDate",
+                id_vars = "Id",
                 verbose=TRUE)
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Geography",
                 field_name = "UpdatedDate",
+                id_vars = "Id",
                 verbose=TRUE)

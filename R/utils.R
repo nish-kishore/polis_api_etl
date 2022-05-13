@@ -202,19 +202,23 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     cycle_start <- Sys.time()
     result <- httr::GET(my_url) 
     result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
-    table_count <- result_content$odata.count
-    my_url <- result_content$odata.nextLink #Get the next URL (e.g. URL + skip=2000) and return to start of while loop
+    if(!is.null(nrow(result_content$value))){
+      all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
+      table_count <- result_content$odata.count
+      my_url <- result_content$odata.nextLink #Get the next URL (e.g. URL + skip=2000) and return to start of while loop
     #Get total queries on initial pass-through
-    if(i == 1){
-      total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
-      } 
+      if(i == 1){
+        total_queries <- ceiling(as.numeric(table_count)/nrow(result_content$value))
+      }
     cycle_end <- Sys.time()
     cycle_time <- round(as.numeric(difftime(cycle_end, cycle_start, units="secs")), 1)
     if(verbose == TRUE) print(paste0('Completed query ', i, " of ", total_queries, "; Query time: ", cycle_time, " seconds"))
     i <- i + 1
-  }
-  
+    }
+    if(is.null(nrow(result_content$value))){
+      my_url <- NULL
+    }
+  }  
   #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
@@ -225,8 +229,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- result_content2$odata.count
 
-  #If full table size is greater than what's been pulled, then pull in missing field_name rows
-  if(as.numeric(table_count2) > as.numeric(nrow(all_results))){
+  #pull in missing field_name rows
     my_url3 <- paste0('https://extranet.who.int/polis/api/v2/',
                       paste0(table_name, "?"),
                       "$filter=(",
@@ -245,14 +248,19 @@ polis_data_pull <- function(my_url, verbose=TRUE){
         my_url3 <- NULL
       }
     }
+  if(!is.null(all_results)){
+    attr(all_results,'query') = initial_query
   }
-  attr(all_results,'query') = initial_query
   return(all_results)
 }
 
 append_and_save <- function(query_output = query_output,
                             id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
                             table_name = table_name){
+  # if(is.null(query_output)){
+  #   warning("No new data was pulled from POLIS. Previous file retained.")
+  # }
+  if(!is.null(query_output)){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
@@ -277,14 +285,25 @@ append_and_save <- function(query_output = query_output,
       stop("Table is incomplete: check id_vars and field_name")
   }
 }
-
+}
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output, field_name, table_name){
+    if(!is.null(query_output)){
     temp <- query_output %>%
       select(all_of(field_name)) %>%
       rename(field_name = 1) %>%
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
+    }
+  if(is.null(query_output)){
+    old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+      mutate_all(.,as.character)
+    temp <- old_polis %>%
+      select(all_of(field_name)) %>%
+      rename(field_name = 1) %>%
+      mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
+    latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
+  }
     updated <<- Sys.time()
 }
     
@@ -414,7 +433,7 @@ compare_metadata <- function(query_output,
 #' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
 #' 
-get_polis_table <- function(folder = load_specs()$polis_data_folder,#or use load_specs() 
+get_polis_table <- function(folder = load_specs()$polis_data_folder, 
                             token = load_specs()$polis$token, 
                             table_name,
                             field_name,

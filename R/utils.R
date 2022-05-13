@@ -89,7 +89,14 @@ init_polis_data_table <- function(table_name, field_name){
       )) %>%
       write_rds(cache_file)
     #Create empty destination rds
-    write_rds(data.frame(matrix(ncol = 0, nrow = 0)), file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+    my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                       paste0(table_name, "?"),
+                       "$inlinecount=allpages&$top=1",
+                       '&token=',load_specs()$polis$token) 
+    result4 <- httr::GET(my_url4)
+    result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    empty_table <- result_content4$value %>% head(0)
+    write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
 }
 
@@ -457,4 +464,10 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "EnvSample",
                 field_name = "LastUpdateDate",
+                verbose=TRUE)
+
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "Geography",
+                field_name = "UpdatedDate",
                 verbose=TRUE)

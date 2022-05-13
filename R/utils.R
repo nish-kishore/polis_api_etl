@@ -81,7 +81,7 @@ init_polis_data_table <- function(table_name, field_name){
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
-        "updated"=Sys.time(),
+        "updated"=as_date("1900-01-01"),
         "file_type"="rds",
         "file_name"= table_name, 
         "latest_date"=as_date("1900-01-01"),
@@ -167,11 +167,11 @@ make_url_general <- function(field_name,
 
 
 
-create_api_url <- function(table_name, latest_date, field_name){
+create_api_url <- function(table_name, updated, field_name){
   table_name <<- table_name
-  latest_date <<- latest_date
+  updated <<- updated
   field_name <<- field_name
-  min_date <- latest_date
+  min_date <- updated
   max_date <- NULL
   filter_url_conv <- make_url_general(
     field_name,
@@ -414,7 +414,7 @@ compare_metadata <- function(query_output,
 #' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
 #' 
-get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use load_specs() 
+get_polis_table <- function(folder = load_specs()$polis_data_folder,#or use load_specs() 
                             token = load_specs()$polis$token, 
                             table_name,
                             field_name,
@@ -426,7 +426,7 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
   
   x <- read_table_in_cache_dir(table_name)
   
-  query_output <- polis_data_pull(my_url = create_api_url(table_name, x$latest_date, x$field_name), 
+  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
                                   verbose = TRUE)
   
   append_and_save(query_output = query_output,

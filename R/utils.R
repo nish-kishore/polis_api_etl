@@ -287,13 +287,13 @@ get_polis_table <- function(folder = Sys.getenv("polis_data_folder"),#or use loa
   )
 }
 
-#fx4 with multicore: Query POLIS via the API url created in fx3 using parallel queries and multicore processing
-polis_data_pull_single_cycle <- function(my_url_cycle){
-  result <- httr::GET(my_url_cycle)
-  result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-  cycle_results <- mutate_all(result_content$value,as.character)
-  return(cycle_results)
-}
+# #fx4 with multicore: Query POLIS via the API url created in fx3 using parallel queries and multicore processing
+# polis_data_pull_single_cycle <- function(my_url_cycle){
+#   result <- httr::GET(my_url_cycle)
+#   result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+#   cycle_results <- mutate_all(result_content$value,as.character)
+#   return(cycle_results)
+# }
 
 #Polis_data_pull_multicore is meant to replace "polis_data_pull" function, once it is working
 polis_data_pull_multicore <- function(my_url, 
@@ -303,7 +303,7 @@ polis_data_pull_multicore <- function(my_url,
     cycle_size <- nrow((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value)
   }
   table_size <- as.numeric((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$odata.count)
-  cycle_list <- paste0(my_url,"&$top=",cycle_size,"&skip=", seq(0, table_size, by = cycle_size)) 
+  cycle_list <- paste0(my_url,"&$top=", cycle_size,"&$skip=", seq(0, table_size, by = cycle_size)) 
   
   all_results <- NULL
   initial_query <- my_url
@@ -313,12 +313,14 @@ polis_data_pull_multicore <- function(my_url,
   no_cores <- parallel::detectCores()-1
   cl <- doParallel::registerDoParallel(no_cores)
   
-  all_results <- foreach(i=1:3, 
+  # all_results <- foreach(i=1:length(cycle_list), #Need the cycle to work 1:length(cycle_list) 
+  all_results <- foreach(i=1:7, #Currently, this works for i 1:no_cores
                          .combine='rbind', 
                          .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
-                 return(mutate_all((httr::content((httr::GET(cycle_list[1])),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
+                 return(mutate_all((httr::content((httr::GET(cycle_list[i])),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
   }
   stopImplicitCluster()
+  return(all_results)
 }  
   
 

@@ -3,7 +3,9 @@
 #' @import lubridate
 #' @import httr
 #' @import foreach
+#' @import doParallel
 #' @import parallel
-#' @import doSNOW
 #' @import jsonlite
 NULL
+
+pacman::p_load(yaml, tidyverse, lubridate, httr, foreach, doParallel, parallel, jsonlite)

@@ -296,75 +296,31 @@ polis_data_pull_single_cycle <- function(my_url_cycle){
 }
 
 #Polis_data_pull_multicore is meant to replace "polis_data_pull" function, once it is working
-polis_data_pull_multicore <- function(my_url, verbose=TRUE){
-  token <- load_specs()$polis$token
+polis_data_pull_multicore <- function(my_url, 
+                                      cycle_size = NULL){
+  #If cycle size is not specified, pull the default from the API
+  if(is.null(cycle_size)){
+    cycle_size <- nrow((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value)
+  }
+  table_size <- as.numeric((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$odata.count)
+  cycle_list <- paste0(my_url,"&$top=",cycle_size,"&skip=", seq(0, table_size, by = cycle_size)) 
+  
   all_results <- NULL
   initial_query <- my_url
-  # numCores <- parallel::detectCores()
-  #get cycle size and table size
-  result <- httr::GET(my_url)
-  result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-  cycle_size <- nrow(result_content$value)
-  table_size <- as.numeric(result_content$odata.count)
-  my_url_with_skip <- gsub("(?<=skip=)[^||]*", "", result_content$odata.nextLink, perl = TRUE)
-  
-  #get list of query urls
-  iteration <- 1
-  cycle_list <- NULL
-  for(i in seq(from=0, to=table_size, by=cycle_size)){
-    start_record <- i
-    if(iteration == 1){
-      cycle_url <- my_url
-    }
-    if(iteration != 1){
-      cycle_url <- paste0(my_url_with_skip, start_record)
-    }
-    cycle <- c(iteration = iteration, start_record = start_record, cycle_url = cycle_url)
-    cycle_list <- cycle_list %>%
-      bind_rows(cycle)
-    iteration <- iteration + 1
-  }
   
   #run query in parallel
   closeAllConnections()
-  library("parallel")
-  no_cores <- detectCores()
-  library("foreach")
-  cl<-makeCluster(no_cores)
-  library("doSNOW")
-  registerDoSNOW(cl)
-
-  # With "%do%", this loop runs fine, but "%dopar%" fails. Unclear why so far.
-  # all_results <- foreach(i=1:nrow(cycle_list), .combine='rbind') %do% {
-  all_results <- foreach(i=1:nrow(cycle_list), .combine='rbind', .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
-    cycle_result <- polis_data_pull_single_cycle(cycle_list$cycle_url[i])
-    print(i)
-    return(cycle_result)
-  }
-  #Check if field_name selected has missing values that will be excluded from query, and notify user
-  stopCluster(cl)
+  no_cores <- parallel::detectCores()-1
+  cl <- doParallel::registerDoParallel(no_cores)
   
-     if(latest_date == "1900-01-01"){
-      my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
-                         paste0(table_name, "?"),
-                         "$inlinecount=allpages&$top=0",
-                         '&token=',token) 
-      result2 <- httr::GET(my_url2)
-      result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-      table_count2 <- result_content2$odata.count
-      if(as.numeric(table_count2) > as.numeric(table_size)){
-        warning(print(paste0("The selected field date ('", field_name, "') includes ", as.numeric(table_count2) - as.numeric(table_count), " obs with missing values. These will be excluded from the dataset.")))
-      }
-    }
-  if(!is.null(table_size)){
-    if(nrow(all_results) != as.numeric(table_size)){
-      warning(paste0('Expected ',table_size, ' results, returned ',nrow(all_results))) 
-    }
+  all_results <- foreach(i=1:3, 
+                         .combine='rbind', 
+                         .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
+                 return(mutate_all((httr::content((httr::GET(cycle_list[1])),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
   }
-  attr(all_results,'query') = initial_query
-  write_rds(all_results, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
-  return(all_results)
-}
+  stopImplicitCluster()
+}  
+  
 
 
 

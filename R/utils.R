@@ -358,17 +358,18 @@ metadata_comparison <- function(new_table_metadata,
     if(nrow(new_table_metadata) != 0 & nrow(old_table_metadata) != 0){
     #compare to old metadata
     compare_metadata <- old_table_metadata %>%
-      full_join(new_table_metadata, by=c("var_name" = "new_var_name"))
+      full_join(new_table_metadata, by=c("var_name"))
     
     new_vars <- (compare_metadata %>%
-      filter(is.na(var_class)))$var_name
+      filter(is.na(var_class.x)))$var_name
+    
     if(length(new_vars) != 0){
       new_vars <<- new_vars
       warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
     }
       
     lost_vars <- (compare_metadata %>%
-      filter(is.na(new_var_class)))$var_name
+      filter(is.na(var_class.y)))$var_name
     
     if(length(lost_vars) != 0){
       lost_vars <<- lost_vars
@@ -376,11 +377,12 @@ metadata_comparison <- function(new_table_metadata,
     }
     
     class_changed_vars <- compare_metadata %>%
-      filter(var_class != new_var_class &
-               !(var_class %in% new_vars) &
-               !(var_class %in% lost_vars)) %>%
-      select(-c(categorical_response_set, new_categorical_response_set)) %>%
-      rename(old_var_class = var_class)
+      filter(!(var_name %in% lost_vars) &
+             !(var_name %in% new_vars) &
+              (var_class.x != var_class.y)) %>%
+      select(-c(categorical_response_set.x, categorical_response_set.y)) %>%
+      rename(old_var_class = var_class.x,
+             new_var_class = var_class.y)
     
     if(nrow(class_changed_vars) != 0){
       class_changed_vars <<- class_changed_vars
@@ -388,15 +390,16 @@ metadata_comparison <- function(new_table_metadata,
     }
     
     new_response <- compare_metadata %>%
-      filter(!(var_name %in% class_changed_vars$old_var_class) &
-             !(var_class %in% new_vars) &
-             !(var_class %in% lost_vars)) %>%
+      filter(!(var_name %in% lost_vars) &
+             !(var_name %in% new_vars) &
+             !(var_name %in% class_changed_vars$var_name)) %>%
       rowwise() %>%
-      mutate(same = toString(intersect(categorical_response_set, new_categorical_response_set)),
-             in_old_not_new = toString(setdiff(categorical_response_set, new_categorical_response_set)),
-             in_new_not_old = toString(setdiff(new_categorical_response_set, categorical_response_set))) %>%
+      mutate(same = toString(intersect(categorical_response_set.x, categorical_response_set.y)),
+             in_old_not_new = toString(setdiff(categorical_response_set.x, categorical_response_set.y)),
+             in_new_not_old = toString(setdiff(categorical_response_set.y, categorical_response_set.x))) %>%
       filter(in_new_not_old != "") %>%
-      rename(old_categorical_response_set = categorical_response_set) %>%
+      rename(old_categorical_response_set = categorical_response_set.x,
+             new_categorical_response_set = categorical_response_set.y) %>%
       select(var_name, old_categorical_response_set, new_categorical_response_set, same, in_old_not_new, in_new_not_old)
     
     if(nrow(new_response) != 0){
@@ -405,25 +408,26 @@ metadata_comparison <- function(new_table_metadata,
     }
     
     #Create an indicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
-    re_pull_polis_indicator <<- FALSE
+    re_pull_polis_indicator <- FALSE
     if(nrow(new_response) != 0 |
        nrow(class_changed_vars) != 0 |
        length(lost_vars) != 0 |
        length(new_vars) != 0){
-      re_pull_polis_indicator <<- TRUE
+      re_pull_polis_indicator <- TRUE
     }
     }
   }
   else{
-    re_pull_polis_indicator <<- FALSE
+    re_pull_polis_indicator <- FALSE
   }
+  return(re_pull_polis_indicator)
 }
 
 #If re_pull_polis_indicator is TRUE, then re-pull the complete table
 
 polis_re_pull <- function(table_name,
                           field_name,
-                          re_pull_polis_indicator = FALSE){
+                          re_pull_polis_indicator){
 
   if(re_pull_polis_indicator == TRUE){
   #delete cache entry
@@ -491,10 +495,9 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   re_pull_polis_indicator <- FALSE
   if(!is.null(old_table_metadata) &
      !is.null(new_table_metadata)){
-    metadata_comparison(new_table_metadata = new_table_metadata,
+    re_pull_polis_indicator <- metadata_comparison(new_table_metadata = new_table_metadata,
                         old_table_metadata = old_table_metadata)
   }
-  if(nrow(old_table_metadata) == 0){re_pull_polis_indicator <<- FALSE}
   
   query_output_repull <- polis_re_pull(table_name = table_name,
                                 field_name = field_name,
@@ -503,7 +506,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     new_table_metadata <- get_polis_metadata(query_output = query_output_repull,
                                              field_name = field_name,
                                              table_name = table_name)
-    query_output <- query_outut_repull
+    query_output <- query_output_repull
   }
   
   new_query_output <- append_and_save(query_output = query_output,

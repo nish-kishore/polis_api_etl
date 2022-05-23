@@ -499,9 +499,12 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                         old_table_metadata = old_table_metadata)
   }
   
+  query_output_repull <- NULL
+  if(re_pull_polis_indicator == TRUE){
   query_output_repull <- polis_re_pull(table_name = table_name,
                                 field_name = field_name,
                                 re_pull_polis_indicator = re_pull_polis_indicator)
+  }
   if(is.null(query_output_repull) == FALSE){
     new_table_metadata <- get_polis_metadata(query_output = query_output_repull,
                                              field_name = field_name,

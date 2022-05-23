@@ -308,18 +308,32 @@ polis_data_pull_multicore <- function(my_url,
   all_results <- NULL
   initial_query <- my_url
   
-  #run query in parallel
-  closeAllConnections()
-  no_cores <- parallel::detectCores()-1
-  cl <- doParallel::registerDoParallel(no_cores)
-  
-  # all_results <- foreach(i=1:length(cycle_list), #Need the cycle to work 1:length(cycle_list) 
-  all_results <- foreach(i=1:7, #Currently, this works for i 1:no_cores
-                         .combine='rbind', 
-                         .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
-                 return(mutate_all((httr::content((httr::GET(cycle_list[i])),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
+  #run sets of 7 queries
+  number_of_sets <- ceiling(length(cycle_list) / 7)
+  list_main <- NULL
+  for(i in 1:number_of_sets){
+    start <- (i*7)-6
+    if((i*7) > length(cycle_list)){
+      end <- length(cycle_list)
+    }
+    else{end <- (i*7)}
+    list_main[[i]] =  as.list(cycle_list[start:end])
   }
-  stopImplicitCluster()
+  
+  full_results <- NULL
+  test <- for(i in 1:length(list_main)) {
+    #run query in parallel for i=1:7
+    closeAllConnections()
+    no_cores <- parallel::detectCores()-1
+    doParallel::registerDoParallel(no_cores)
+    full_results[[i]] <- foreach(j=1:length(list_main[[i]]), #Currently, this works for i 1:7, regardless of the number of cores (i.e. if no_cores is set to 3, it can still run with i=1:5)
+                           .combine=rbind, 
+                           .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
+                            (mutate_all((httr::content((httr::GET(as.character(list_main[[i]][j]))),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
+                           }
+    stopImplicitCluster()
+    print(i)
+  }
   return(all_results)
 }  
   

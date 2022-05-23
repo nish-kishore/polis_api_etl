@@ -49,7 +49,7 @@ load_specs <- function(folder = Sys.getenv("polis_data_folder")){
 #' @param .file_name A string describing the file name for which you want information
 #' @return tibble row which can be atomically accessed
 read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
-  read_rds(cache_file) %>%
+  readRDS(cache_file) %>%
     filter(file_name == .file_name)
 }
 
@@ -63,7 +63,7 @@ update_cache <- function(.file_name,
                          .val,
                          cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
                          ){
-  tmp <- read_rds(cache_file)
+  tmp <- readRDS(cache_file)
   tmp[which(tmp$file_name == .file_name),.val_to_update] <- .val
   write_rds(tmp, cache_file)
   print("Cache updated!")
@@ -280,6 +280,7 @@ append_and_save <- function(query_output = query_output,
     new_query_output <- query_output %>%
       bind_rows(old_polis)
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+    return(new_query_output)
   }
   if(table_count2 != nrow(old_polis) + nrow(query_output)){
       stop("Table is incomplete: check id_vars and field_name")
@@ -313,7 +314,6 @@ get_polis_metadata <- function(query_output,
                                table_name,
                                field_name
                                ){
-
   #summarise var names and classes
   var_name_class <- skimr::skim(query_output) %>% 
     select(skim_type, skim_variable, character.n_unique) %>%
@@ -331,26 +331,34 @@ get_polis_metadata <- function(query_output,
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
     left_join(categorical_vars, by=c("var_name"))
+  return(table_metadata)
 }
 
 #read metadata from cache and compare to new file
 read_table_metadata <- function(table_name){
-  old_table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+  if(file.exists(file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds"))) == TRUE){
+  old_table_metadata <- readRDS( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+  }
+  else{
+    old_table_metadata <- data.frame(matrix(ncol = 0, nrow = 0))
+  }
+  return(old_table_metadata)
 }
 
 #write metadata to cache
-write_table_metadata <- function(table_metadata){
-  write_rds(table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+write_table_metadata <- function(new_table_metadata){
+  write_rds(new_table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
 }
 
 #Compare metadata of newly pulled dataset to cached metadata
-compare_metadata <- function(table_metadata,
+metadata_comparison <- function(new_table_metadata,
                              old_table_metadata){
-  
-  
+  #if new or old metadata are null, go to end
+  if(!is.null(new_table_metadata) & !is.null(old_table_metadata)){
+    if(nrow(new_table_metadata) != 0 & nrow(old_table_metadata) != 0){
     #compare to old metadata
     compare_metadata <- old_table_metadata %>%
-      full_join(new_metadata, by=c("var_name" = "new_var_name"))
+      full_join(new_table_metadata, by=c("var_name" = "new_var_name"))
     
     new_vars <- (compare_metadata %>%
       filter(is.na(var_class)))$var_name
@@ -404,6 +412,11 @@ compare_metadata <- function(table_metadata,
        length(new_vars) != 0){
       re_pull_polis_indicator <<- TRUE
     }
+    }
+  }
+  else{
+    re_pull_polis_indicator <<- FALSE
+  }
 }
 
 #If re_pull_polis_indicator is TRUE, then re-pull the complete table
@@ -467,14 +480,44 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
                                   verbose = TRUE)
   
-  #metadata comparison goes here
+  new_table_metadata <- NULL
+  if(!is.null(query_output)){
+  new_table_metadata <- get_polis_metadata(query_output = query_output,
+                     field_name = field_name,
+                     table_name = table_name)
+  }
   
-  #re-pull if metadata changes goes here
+  old_table_metadata <- read_table_metadata(table_name = table_name)
+  re_pull_polis_indicator <- FALSE
+  if(!is.null(old_table_metadata) &
+     !is.null(new_table_metadata)){
+    metadata_comparison(new_table_metadata = new_table_metadata,
+                        old_table_metadata = old_table_metadata)
+  }
+  if(nrow(old_table_metadata) == 0){re_pull_polis_indicator <<- FALSE}
   
-  append_and_save(query_output = query_output,
-                  table_name = table_name,
-                  id_vars = id_vars)
+  query_output_repull <- polis_re_pull(table_name = table_name,
+                                field_name = field_name,
+                                re_pull_polis_indicator = re_pull_polis_indicator)
+  if(is.null(query_output_repull) == FALSE){
+    new_table_metadata <- get_polis_metadata(query_output = query_output_repull,
+                                             field_name = field_name,
+                                             table_name = table_name)
+    query_output <- query_outut_repull
+  }
   
+  new_query_output <- append_and_save(query_output = query_output,
+                                      table_name = table_name,
+                                      id_vars = id_vars)
+  
+  #get combined metadata
+  if(!is.null(new_query_output)){
+  new_table_metadata <- get_polis_metadata(query_output = new_query_output,
+                                           field_name = field_name,
+                                           table_name = table_name)
+  #save metadata to cache
+  write_table_metadata(new_table_metadata =  new_table_metadata)
+  }
   get_update_cache_dates(query_output = query_output,
                          field_name = field_name,
                          table_name = table_name)
@@ -530,3 +573,4 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 field_name = "UpdatedDate",
                 id_vars = "Id",
                 verbose=TRUE)
+

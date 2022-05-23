@@ -293,7 +293,7 @@ get_update_cache_dates <- function(query_output, field_name, table_name){
       select(all_of(field_name)) %>%
       rename(field_name = 1) %>%
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
-    latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
+    latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
   if(is.null(query_output)){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
@@ -336,37 +336,15 @@ get_polis_metadata <- function(query_output,
 
 #read metadata from cache and compare to new file
 read_table_metadata <- function(table_name){
-  table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+  old_table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
 }
 #Compare metadata of newly pulled dataset to cached metadata
-compare_metadata <- function(query_output,
-                             table_metadata){
+compare_metadata <- function(table_metadata,
+                             old_table_metadata){
   
-  #get new metadata
-    #summarise var names and classes
-  query_output <- query_output %>%
-      filter(SiteStatus != "INACTIVE") %>%
-      mutate(SiteStatus = case_when(SiteStatus == "ACTIVE" ~ "TESTING",
-                                    TRUE ~ SiteStatus)) 
-    var_name_class <- skimr::skim(query_output) %>% 
-      select(skim_type, skim_variable, character.n_unique) %>%
-      rename(new_var_name = skim_variable,
-             new_var_class = skim_type)
-    
-    #categorical sets
-    categorical_vars <- query_output %>%
-      select(var_name_class$new_var_name[var_name_class$character.n_unique <= 30]) %>%
-      pivot_longer(cols=everything(), names_to="new_var_name", values_to = "new_response") %>%
-      distinct() %>%
-      pivot_wider(names_from=new_var_name, values_from=new_response, values_fn = list) %>%
-      pivot_longer(cols=everything(), names_to="new_var_name", values_to="new_categorical_response_set")
   
-    new_metadata <- var_name_class %>%
-      select(-character.n_unique) %>%
-      left_join(categorical_vars, by=c("new_var_name"))
-    
     #compare to old metadata
-    compare_metadata <- table_metadata %>%
+    compare_metadata <- old_table_metadata %>%
       full_join(new_metadata, by=c("var_name" = "new_var_name"))
     
     new_vars <- (compare_metadata %>%
@@ -413,7 +391,7 @@ compare_metadata <- function(query_output,
       warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
     }
     
-    #Create an inidicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
+    #Create an indicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
     re_pull_polis_indicator <<- FALSE
     if(nrow(new_response) != 0 |
        nrow(class_changed_vars) != 0 |

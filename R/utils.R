@@ -286,6 +286,7 @@ append_and_save <- function(query_output = query_output,
   }
 }
 }
+
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output, field_name, table_name){
     if(!is.null(query_output)){
@@ -330,14 +331,18 @@ get_polis_metadata <- function(query_output,
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
     left_join(categorical_vars, by=c("var_name"))
-  
-  write_rds(table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))  
-    }
+}
 
 #read metadata from cache and compare to new file
 read_table_metadata <- function(table_name){
   old_table_metadata <- read_rds( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
 }
+
+#write metadata to cache
+write_table_metadata <- function(table_metadata){
+  write_rds(table_metadata, file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
+}
+
 #Compare metadata of newly pulled dataset to cached metadata
 compare_metadata <- function(table_metadata,
                              old_table_metadata){
@@ -401,6 +406,42 @@ compare_metadata <- function(table_metadata,
     }
 }
 
+#If re_pull_polis_indicator is TRUE, then re-pull the complete table
+
+polis_re_pull <- function(table_name,
+                          field_name,
+                          re_pull_polis_indicator = FALSE){
+
+  if(re_pull_polis_indicator == TRUE){
+  #delete cache entry
+  folder <- load_specs()$polis_data_folder
+  cache_dir <- file.path(folder, "cache_dir")
+  cache_file <- file.path(cache_dir, "cache.rds")
+  if(nrow(read_cache(.file_name = table_name)) != 0){
+    readRDS(cache_file) %>%
+      filter(file_name != table_name) %>%
+      write_rds(cache_file)
+    
+  #create new cache entry
+  init_polis_data_table(table_name, field_name)
+  
+  #overwrited table rds with empty destination rds
+  my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                     paste0(table_name, "?"),
+                     "$inlinecount=allpages&$top=1",
+                     '&token=',load_specs()$polis$token) 
+  result4 <- httr::GET(my_url4)
+  result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+  empty_table <- result_content4$value %>% head(0)
+  write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+  }
+  #re-pull complete table
+  x <- read_table_in_cache_dir(table_name)
+  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
+                                  verbose = TRUE)
+  }
+}
+
 
 #Input function using fx1:fx5
 
@@ -425,6 +466,10 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
                                   verbose = TRUE)
+  
+  #metadata comparison goes here
+  
+  #re-pull if metadata changes goes here
   
   append_and_save(query_output = query_output,
                   table_name = table_name,

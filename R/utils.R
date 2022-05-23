@@ -277,9 +277,9 @@ append_and_save <- function(query_output = query_output,
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
   if(table_count2 == nrow(old_polis) + nrow(query_output)){
-    query_output <- query_output %>%
+    new_query_output <- query_output %>%
       bind_rows(old_polis)
-    write_rds(query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+    write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
   if(table_count2 != nrow(old_polis) + nrow(query_output)){
       stop("Table is incomplete: check id_vars and field_name")

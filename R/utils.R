@@ -338,7 +338,8 @@ polis_data_pull_multicore <- function(my_url,
   return(all_results)
 }  
   
-# create a URL to collect the count 
+#' create a URL to collect the count 
+#' @param 
 get_table_count <- function(table_name, 
                            min_date = as_date("2000-01-01"), 
                            field_name){
@@ -367,7 +368,11 @@ get_table_count <- function(table_name,
     return()
 }
 
-#create an array of URL's for a given table 
+#' create an array of URL's for a given table 
+#' @param table_name string of a table name available in POLIS
+#' @param min_date 'date' object of earliest date acceptable for filter 
+#' @param field_name string of field name used to filter date
+#' @param download_size integer specifying # of rows to download
 create_url_array <- function(table_name, 
                             min_date = as_date("2000-01-01"), 
                             field_name,
@@ -396,7 +401,7 @@ create_url_array <- function(table_name,
   
 }
 
-#get table data for a single url request
+#' get table data for a single url request
 #' @param url string of a single url 
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){
@@ -409,7 +414,7 @@ get_table_data <- function(url, p){
     as_tibble()
 }
 
-#multicole pull from API
+#' multicole pull from API
 #' @param urls array of URL strings
 mc_api_pull <- function(urls){
   p <- progressor(steps = length(urls))
@@ -418,7 +423,7 @@ mc_api_pull <- function(urls){
     bind_rows()
 }
 
-#wrapper around multicore pull to produce progress bars
+#' wrapper around multicore pull to produce progress bars
 #' @param urls array of URL strings
 pb_mc_api_pull <- function(urls){
   n_cores <- availableCores() - 1
@@ -430,28 +435,3 @@ pb_mc_api_pull <- function(urls){
   return(result)
   stopCluster(n_cores)
 }
-
-
-
-
-
-# Examples of get_polis_table:
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "Lqas",
-                field_name = "Start")
-# ,
-#                 verbose=TRUE)
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "EnvSample",
-                field_name = "LastUpdateDate")
-
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "Synonym",
-                field_name = "CreatedDate",
-                verbose=TRUE)
-
-,
-                verbose=TRUE)

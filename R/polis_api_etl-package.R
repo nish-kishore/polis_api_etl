@@ -10,4 +10,4 @@
 #' @import curl
 NULL
 
-pacman::p_load(yaml, tidyverse, lubridate, httr, foreach, doParallel, parallel, jsonlite)
+pacman::p_load(yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl)

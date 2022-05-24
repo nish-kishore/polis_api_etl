@@ -367,6 +367,74 @@ get_table_count <- function(table_name,
     return()
 }
 
+#create an array of URL's for a given table 
+create_url_array <- function(table_name, 
+                            min_date = as_date("2000-01-01"), 
+                            field_name,
+                            download_size = 500){
+  
+  filter_url_conv <- make_url_general(
+    field_name,
+    min_date,
+    max_date
+  )
+  
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$filter=",
+                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+  
+  table_size <- get_table_count(table_name = table_name, 
+                                min_date = min_date, 
+                                field_name = field_name)
+  
+  urls <- paste0(my_url, "&$top=500&$skip=",seq(0,table_size,download_size))
+  
+  return(urls)
+  
+}
+
+#get table data for a single url request
+#' @param url string of a single url 
+#' @param p used as iterator in multicore processing
+get_table_data <- function(url, p){
+  p()
+  
+  httr::GET(url) %>%
+    httr::content(type='text',encoding = 'UTF-8') %>% 
+    jsonlite::fromJSON() %>%
+    {.$value} %>%
+    as_tibble()
+}
+
+#multicole pull from API
+#' @param urls array of URL strings
+mc_api_pull <- function(urls){
+  p <- progressor(steps = length(urls))
+  
+  future_map(urls,get_table_data, p = p) %>%
+    bind_rows()
+}
+
+#wrapper around multicore pull to produce progress bars
+#' @param urls array of URL strings
+pb_mc_api_pull <- function(urls){
+  n_cores <- availableCores() - 1
+  plan(multicore, workers = n_cores, gc = T)
+  
+  with_progress({
+    result <- mc_api_pull(urls)
+  })
+  return(result)
+  stopCluster(n_cores)
+}
+
+
+
+
+
 # Examples of get_polis_table:
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",

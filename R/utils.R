@@ -81,22 +81,26 @@ init_polis_data_table <- function(table_name, field_name){
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
-        "updated"=as_date("1900-01-01"),
-        "file_type"="rds",
+        "updated"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
+        "file_type"="rds", #currently, hard-coded as RDS. Could revise to allow user to specify output file type (e.g. rds, csv, other)
         "file_name"= table_name, 
-        "latest_date"=as_date("1900-01-01"),
+        "latest_date"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
+    
     #Create empty destination rds
-    my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
-                       paste0(table_name, "?"),
-                       "$inlinecount=allpages&$top=1",
-                       '&token=',load_specs()$polis$token) 
-    result4 <- httr::GET(my_url4)
-    result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    empty_table <- result_content4$value %>% head(0)
-    write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+      #Get colnames for empty destination rds
+        my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                           paste0(table_name, "?"),
+                           "$inlinecount=allpages&$top=1",
+                           '&token=',load_specs()$polis$token) 
+        result4 <- httr::GET(my_url4)
+        result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      #save colnames and 0 rows as empty dataframe
+      empty_table <- result_content4$value %>% head(0)
+
+      write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
 }
 
@@ -105,6 +109,7 @@ read_table_in_cache_dir <- function(table_name){
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
+  #if a row with the table_name exists within cache, then pull the values from that row
   if(nrow(read_cache(.file_name = table_name)) != 0){
       updated <- (readRDS(cache_file) %>%
         filter(file_name == table_name))$updated %>%
@@ -126,6 +131,8 @@ read_table_in_cache_dir <- function(table_name){
 #' @param field_name The name of the field used for date filtering.
 #' @param date_min The 10 digit string for the min date.
 #' @return String compatible with API v2 syntax.
+
+#convert field_name and date_min to the format needed for API query
 date_min_conv <- function(field_name, date_min){
   if(is.null(field_name) || is.null(date_min)) return(NULL)
   paste0("(",
@@ -134,7 +141,7 @@ date_min_conv <- function(field_name, date_min){
          ")")
 }
 
-#date_max_conv (Note: this is copied from idm_polis_api)
+#convert field_name and date_max to the format needed for API query
 
 #' @param field_name The name of the field used for date filtering.
 #' @param date_max The 10 digit string for the max date.
@@ -166,7 +173,7 @@ make_url_general <- function(field_name,
 }
 
 
-
+#create an api URL using the table_name, field_name, and dates specified
 create_api_url <- function(table_name, updated, field_name){
   table_name <<- table_name
   updated <<- updated
@@ -191,6 +198,7 @@ create_api_url <- function(table_name, updated, field_name){
 
 #fx4: Query POLIS via the API url created in fx3
 
+#NOTE: polis_data_pull currently runs the queries in sequence, with the default size of each pull
 polis_data_pull <- function(my_url, verbose=TRUE){
   token <- load_specs()$polis$token
   all_results <- NULL
@@ -229,7 +237,8 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- result_content2$odata.count
 
-  #pull in missing field_name rows
+    #Pulling from a table with a query that uses a date filter excludes rows where teh date is missing.
+    #Run a separate query to pull in all rows where the date is missing
     my_url3 <- paste0('https://extranet.who.int/polis/api/v2/',
                       paste0(table_name, "?"),
                       "$filter=(",
@@ -254,12 +263,12 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   return(all_results)
 }
 
+#Join the previously cached dataset for a table to the newly pulled dataset
 append_and_save <- function(query_output = query_output,
                             id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
                             table_name = table_name){
-  # if(is.null(query_output)){
-  #   warning("No new data was pulled from POLIS. Previous file retained.")
-  # }
+  
+  #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output)){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
@@ -276,13 +285,18 @@ append_and_save <- function(query_output = query_output,
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
-  if(table_count2 == nrow(old_polis) + nrow(query_output)){
+    
+    #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
+    if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
-  }
-  if(table_count2 != nrow(old_polis) + nrow(query_output)){
+    }
+  
+    #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
+      #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
+      if(table_count2 != nrow(old_polis) + nrow(query_output)){
       stop("Table is incomplete: check id_vars and field_name")
   }
 }
@@ -290,6 +304,8 @@ append_and_save <- function(query_output = query_output,
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output, field_name, table_name){
+    
+    #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it  
     if(!is.null(query_output)){
     temp <- query_output %>%
       select(all_of(field_name)) %>%
@@ -297,7 +313,9 @@ get_update_cache_dates <- function(query_output, field_name, table_name){
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
-  if(is.null(query_output)){
+    
+    #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as teh max of field_name in the old dataset
+    if(is.null(query_output)){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
       mutate_all(.,as.character)
     temp <- old_polis %>%
@@ -306,28 +324,30 @@ get_update_cache_dates <- function(query_output, field_name, table_name){
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1]), "%Y-%m-%d")
   }
-    updated <<- Sys.time()
+      #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
+      updated <<- Sys.time()
 }
     
 #Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
 get_polis_metadata <- function(query_output,
                                table_name,
-                               field_name
-                               ){
+                               field_name,
+                               categorical_max = 30){
   #summarise var names and classes
   var_name_class <- skimr::skim(query_output) %>% 
     select(skim_type, skim_variable, character.n_unique) %>%
     rename(var_name = skim_variable,
            var_class = skim_type)
   
-  #categorical sets
+  #categorical sets: for categorical variables with <= n unique values, get a list of unique values
   categorical_vars <- query_output %>%
-    select(var_name_class$var_name[var_name_class$character.n_unique <= 30]) %>%
+    select(var_name_class$var_name[var_name_class$character.n_unique <= categorical_max]) %>%
     pivot_longer(cols=everything(), names_to="var_name", values_to = "response") %>%
     distinct() %>%
     pivot_wider(names_from=var_name, values_from=response, values_fn = list) %>%
     pivot_longer(cols=everything(), names_to="var_name", values_to="categorical_response_set")
   
+  #Combine var names/classes/categorical-sets into a 'metadata table'
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
     left_join(categorical_vars, by=c("var_name"))
@@ -336,9 +356,11 @@ get_polis_metadata <- function(query_output,
 
 #read metadata from cache and compare to new file
 read_table_metadata <- function(table_name){
+  #If the metadata table exists, then load it
   if(file.exists(file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds"))) == TRUE){
   old_table_metadata <- readRDS( file.path(load_specs()$polis_data_folder, "cache_dir", paste0(table_name, "_metadata.rds")))
   }
+  #If the metadata table does not exists, save a blank dataframe as a placeholder
   else{
     old_table_metadata <- data.frame(matrix(ncol = 0, nrow = 0))
   }
@@ -389,6 +411,7 @@ metadata_comparison <- function(new_table_metadata,
       warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
     }
     
+    #Check for new responses in categorical variables (excluding new variables and class changed variables that have been previously shown)
     new_response <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
              !(var_name %in% new_vars) &
@@ -431,26 +454,30 @@ polis_re_pull <- function(table_name,
 
   if(re_pull_polis_indicator == TRUE){
   #delete cache entry
-  folder <- load_specs()$polis_data_folder
-  cache_dir <- file.path(folder, "cache_dir")
-  cache_file <- file.path(cache_dir, "cache.rds")
-  if(nrow(read_cache(.file_name = table_name)) != 0){
-    readRDS(cache_file) %>%
-      filter(file_name != table_name) %>%
-      write_rds(cache_file)
+    folder <- load_specs()$polis_data_folder
+    cache_dir <- file.path(folder, "cache_dir")
+    cache_file <- file.path(cache_dir, "cache.rds")
+    #If cache entry exists, then:
+      #remove the cache entry and save over the cache file
+      #create a new cache entry for the table
+      #delete the old saved dataset and replace it with a blank dataset
+      if(nrow(read_cache(.file_name = table_name)) != 0){
+        readRDS(cache_file) %>%
+          filter(file_name != table_name) %>%
+        write_rds(cache_file)
     
-  #create new cache entry
-  init_polis_data_table(table_name, field_name)
+      #create new cache entry
+      init_polis_data_table(table_name, field_name)
   
-  #overwrited table rds with empty destination rds
-  my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
+      #overwrited table rds with empty destination rds
+      my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
                      "$inlinecount=allpages&$top=1",
                      '&token=',load_specs()$polis$token) 
-  result4 <- httr::GET(my_url4)
-  result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-  empty_table <- result_content4$value %>% head(0)
-  write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+      result4 <- httr::GET(my_url4)
+      result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      empty_table <- result_content4$value %>% head(0)
+      write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
   #re-pull complete table
   x <- read_table_in_cache_dir(table_name)
@@ -475,15 +502,20 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             field_name,
                             verbose = TRUE,
                             id_vars = "Id"){
+  #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
   
+  #Create cache entry and blank dataframe for a POLIS data table if it does not already exist  
   init_polis_data_table(table_name, field_name)
   
+  #Read the cache entry for the requested POLIS data table
   x <- read_table_in_cache_dir(table_name)
   
+  #Create an API URL and use it to query POLIS
   query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
                                   verbose = TRUE)
   
+  #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output)){
   new_table_metadata <- get_polis_metadata(query_output = query_output,
@@ -491,20 +523,25 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                      table_name = table_name)
   }
   
+  #If a version of the data table has been previously pulled and saved, read it's metadata file for comparison
   old_table_metadata <- read_table_metadata(table_name = table_name)
   re_pull_polis_indicator <- FALSE
+  
+  #If both old and new metadata summaries exist, then compare them. If there are differences, then set the re_pull_polis_indicator to trigger re-pull of entire table
   if(!is.null(old_table_metadata) &
      !is.null(new_table_metadata)){
     re_pull_polis_indicator <- metadata_comparison(new_table_metadata = new_table_metadata,
                         old_table_metadata = old_table_metadata)
   }
-  
+
+  #If a re-pull was indicated in the metadata comparison, then re-pull the full table  
   query_output_repull <- NULL
   if(re_pull_polis_indicator == TRUE){
   query_output_repull <- polis_re_pull(table_name = table_name,
                                 field_name = field_name,
                                 re_pull_polis_indicator = re_pull_polis_indicator)
   }
+  #If the re-pull found any data, then replace query_output with the re-pulled query output and get a summary of its metadata
   if(is.null(query_output_repull) == FALSE){
     new_table_metadata <- get_polis_metadata(query_output = query_output_repull,
                                              field_name = field_name,
@@ -512,30 +549,28 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     query_output <- query_output_repull
   }
   
+  #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
                                       id_vars = id_vars)
   
-  #get combined metadata
+  #get metadata from combined file and save it in cache folder
   if(!is.null(new_query_output)){
   new_table_metadata <- get_polis_metadata(query_output = new_query_output,
                                            field_name = field_name,
                                            table_name = table_name)
-  #save metadata to cache
   write_table_metadata(new_table_metadata =  new_table_metadata)
   }
+  
+  #Get the cache dates for the newly saved table
   get_update_cache_dates(query_output = query_output,
                          field_name = field_name,
                          table_name = table_name)
   
+  #Update the cache date fields
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
                .val = latest_date,
-               cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
-  )
-  update_cache(.file_name = table_name,
-               .val_to_update = "updated",
-               .val = updated,
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
   update_cache(.file_name = table_name,

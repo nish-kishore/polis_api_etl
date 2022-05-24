@@ -303,38 +303,49 @@ polis_data_pull_multicore <- function(my_url,
   if(is.null(cycle_size)){
     cycle_size <- nrow((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value)
   }
+  
+  #get the overall table size, used to create the cycle list
   table_size <- as.numeric((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$odata.count)
+  
+  #create a list of urls with skip/top pattern
   cycle_list <- paste0(my_url,"&$top=", cycle_size,"&$skip=", seq(0, table_size, by = cycle_size)) 
   
   all_results <- NULL
   initial_query <- my_url
   
-  #run sets of n queries
-  api_ports <- 3
-  number_of_sets <- ceiling(length(cycle_list) / api_ports)
+  #batch the urls in cycle_list into a "list of lists" 
+  batch_size <- 3
+  number_of_sets <- ceiling(length(cycle_list) / batch_size)
   list_main <- NULL
   for(i in 1:number_of_sets){
-    start <- (i*api_ports)-api_ports+1
-    if((i*api_ports) > length(cycle_list)){
+    start <- (i*batch_size)-batch_size+1
+    if((i*batch_size) > length(cycle_list)){
       end <- length(cycle_list)
     }
-    else{end <- (i*api_ports)}
+    else{end <- (i*batch_size)}
     list_main[[i]] =  as.list(cycle_list[start:end])
   }
   
+  #For each batch of urls, run the queries in parallel for each item in the batch
   full_results <- NULL
 
   for(i in 1:length(list_main)) {
     if(i == 1){    total_starttime <- Sys.time()  }
     group_starttime <- Sys.time()
+
+    #Create cluster
     closeAllConnections()
     no_cores <- parallel::detectCores()-1
     cl <- doParallel::registerDoParallel(no_cores)
+    
+    #pass batch i of URLs through cluster
     full_results[[i]] <- foreach(j=1:length(list_main[[i]]), #Currently, this works for i 1:7, regardless of the number of cores (i.e. if no_cores is set to 3, it can still run with i=1:5)
                            .combine=c, 
                            .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
                             (mutate_all((httr::content((httr::GET(as.character(list_main[[i]][j]))),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
                            }
+    
+    #Close cluster
     stopImplicitCluster()
     group_diff <- round(Sys.time() - group_starttime,0)
     print(paste0("group ",i, ", seconds: ", group_diff))

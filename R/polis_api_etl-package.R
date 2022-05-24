@@ -3,7 +3,11 @@
 #' @import lubridate
 #' @import httr
 #' @import jsonlite
-#' @import skimr
+#' @import progressr
+#' @import future
+#' @import furrr
+#' @import RCurl
+#' @import curl
 NULL
 
-pacman::p_load(yaml, tidyverse, lubridate, httr, jsonlite, skimr)
+pacman::p_load(yaml, tidyverse, lubridate, httr, foreach, doParallel, parallel, jsonlite)

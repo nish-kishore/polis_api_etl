@@ -1,10 +1,10 @@
 #Utility functions for the POLIS API ETL
 
 #' Check to see if cache exists, if not create it
-#' @param folder A string, the location of the polis data folder 
-#' @return A string describing the creation process or errors 
-init_polis_data_struc <- function(folder, token){
-  #check to see if folder exists, if not create it 
+#' @param folder A string, the location of the polis data folder
+#' @return A string describing the creation process or errors
+init_polis_data_struc <- function(folder, token = NULL){
+  #check to see if folder exists, if not create it
   if(!dir.exists(folder)){
     dir.create(folder)
   }
@@ -13,20 +13,20 @@ init_polis_data_struc <- function(folder, token){
   if(!dir.exists(cache_dir)){
     dir.create(cache_dir)
   }
-  #check to see if cache admin rds exists, if not create it 
+  #check to see if cache admin rds exists, if not create it
   cache_file <- file.path(cache_dir, "cache.rds")
   if(!file.exists(cache_file)){
     tibble(
       "created"=Sys.time(),
       "updated"=Sys.time(),
       "file_type"="INIT",
-      "file_name"="INIT", 
+      "file_name"="INIT",
       "latest_date"=as_date("1900-01-01"),
       "date_field" = "N/A"
     ) %>%
       write_rds(cache_file)
   }
-  #create specs yaml 
+  #create specs yaml
   specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
   if(!file.exists(specs_yaml)){
     yaml_out <- list()
@@ -37,8 +37,8 @@ init_polis_data_struc <- function(folder, token){
   Sys.setenv("polis_data_folder" = folder)
 }
 
-#' Load authorizations and local config 
-#' @param file A string 
+#' Load authorizations and local config
+#' @param file A string
 #' @return auth/config object
 load_specs <- function(folder = Sys.getenv("polis_data_folder")){
   specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
@@ -55,7 +55,7 @@ read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_dat
 
 #' Update cache and return row
 #' @param .file_name A string describing the file name for which you want to update information
-#' @param .val_to_update A string describing the value to be updated 
+#' @param .val_to_update A string describing the value to be updated
 #' @param .val A value of the same type as the value you're replacing
 #' @return row of a tibble
 update_cache <- function(.file_name,
@@ -77,24 +77,24 @@ init_polis_data_table <- function(table_name, field_name){
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
   if(nrow(read_cache(.file_name = table_name)) == 0){
-    #Create cache entry  
+    #Create cache entry
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
         "updated"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
         "file_type"="rds", #currently, hard-coded as RDS. Could revise to allow user to specify output file type (e.g. rds, csv, other)
-        "file_name"= table_name, 
+        "file_name"= table_name,
         "latest_date"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
-    
+
     #Create empty destination rds
       #Get colnames for empty destination rds
         my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
                            paste0(table_name, "?"),
                            "$inlinecount=allpages&$top=1",
-                           '&token=',load_specs()$polis$token) 
+                           '&token=',load_specs()$polis$token)
         result4 <- httr::GET(my_url4)
         result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
       #save colnames and 0 rows as empty dataframe
@@ -164,21 +164,22 @@ make_url_general <- function(field_name,
                             min_date,
                             max_date,
                             ...){
-  
+
   paste0(c(date_min_conv(field_name, min_date),
            date_max_conv(field_name, max_date)),
-         collapse = " and ") %>% 
+         collapse = " and ") %>%
     paste0(...) %>%
     paste0("&$inlinecount=allpages")
 }
 
 
-#create an api URL using the table_name, field_name, and dates specified
-create_api_url <- function(table_name, updated, field_name){
-  table_name <<- table_name
-  updated <<- updated
-  field_name <<- field_name
-  min_date <- updated
+
+create_api_url <- function(table_name,
+                           latest_date = as_date("2000-01-01"),
+                           field_name){
+  table_name <- table_name
+  field_name <- field_name
+  min_date <- latest_date
   max_date <- NULL
   filter_url_conv <- make_url_general(
     field_name,
@@ -192,7 +193,7 @@ create_api_url <- function(table_name, updated, field_name){
                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
                   '&token=',token) %>%
     httr::modify_url()
-  
+
   return(my_url)
 }
 
@@ -204,11 +205,11 @@ polis_data_pull <- function(my_url, verbose=TRUE){
   all_results <- NULL
   initial_query <- my_url
   i <- 1
-  
+
   #loop through the while loop, with each iteration pulling 2000 rows via API, then getting the next URL
   while(!is.null(my_url)){
     cycle_start <- Sys.time()
-    result <- httr::GET(my_url) 
+    result <- httr::GET(my_url)
     result_content <- httr::content(result,type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     if(!is.null(nrow(result_content$value))){
       all_results <- bind_rows(all_results,mutate_all(result_content$value,as.character))
@@ -226,7 +227,7 @@ polis_data_pull <- function(my_url, verbose=TRUE){
     if(is.null(nrow(result_content$value))){
       my_url <- NULL
     }
-  }  
+  }
   #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
@@ -267,14 +268,14 @@ polis_data_pull <- function(my_url, verbose=TRUE){
 append_and_save <- function(query_output = query_output,
                             id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
                             table_name = table_name){
-  
+
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output)){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
-      anti_join(query_output, by=id_vars) 
-  
+      anti_join(query_output, by=id_vars)
+
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
@@ -285,7 +286,7 @@ append_and_save <- function(query_output = query_output,
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
-    
+
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
     if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
@@ -293,7 +294,7 @@ append_and_save <- function(query_output = query_output,
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
     }
-  
+
     #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
       #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
       if(table_count2 != nrow(old_polis) + nrow(query_output)){
@@ -304,8 +305,8 @@ append_and_save <- function(query_output = query_output,
 
 # fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output, field_name, table_name){
-    
-    #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it  
+
+    #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it
     if(!is.null(query_output)){
     temp <- query_output %>%
       select(all_of(field_name)) %>%
@@ -313,7 +314,7 @@ get_update_cache_dates <- function(query_output, field_name, table_name){
       mutate(field_name = as.Date(field_name, "%Y-%m-%d"))
     latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
-    
+
     #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as teh max of field_name in the old dataset
     if(is.null(query_output)){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
@@ -327,18 +328,18 @@ get_update_cache_dates <- function(query_output, field_name, table_name){
       #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
       updated <<- Sys.time()
 }
-    
+
 #Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
 get_polis_metadata <- function(query_output,
                                table_name,
                                field_name,
                                categorical_max = 30){
   #summarise var names and classes
-  var_name_class <- skimr::skim(query_output) %>% 
+  var_name_class <- skimr::skim(query_output) %>%
     select(skim_type, skim_variable, character.n_unique) %>%
     rename(var_name = skim_variable,
            var_class = skim_type)
-  
+
   #categorical sets: for categorical variables with <= n unique values, get a list of unique values
   categorical_vars <- query_output %>%
     select(var_name_class$var_name[var_name_class$character.n_unique <= categorical_max]) %>%
@@ -346,7 +347,7 @@ get_polis_metadata <- function(query_output,
     distinct() %>%
     pivot_wider(names_from=var_name, values_from=response, values_fn = list) %>%
     pivot_longer(cols=everything(), names_to="var_name", values_to="categorical_response_set")
-  
+
   #Combine var names/classes/categorical-sets into a 'metadata table'
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
@@ -381,23 +382,23 @@ metadata_comparison <- function(new_table_metadata,
     #compare to old metadata
     compare_metadata <- old_table_metadata %>%
       full_join(new_table_metadata, by=c("var_name"))
-    
+
     new_vars <- (compare_metadata %>%
       filter(is.na(var_class.x)))$var_name
-    
+
     if(length(new_vars) != 0){
       new_vars <<- new_vars
       warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
     }
-      
+
     lost_vars <- (compare_metadata %>%
       filter(is.na(var_class.y)))$var_name
-    
+
     if(length(lost_vars) != 0){
       lost_vars <<- lost_vars
       warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
     }
-    
+
     class_changed_vars <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
              !(var_name %in% new_vars) &
@@ -405,12 +406,12 @@ metadata_comparison <- function(new_table_metadata,
       select(-c(categorical_response_set.x, categorical_response_set.y)) %>%
       rename(old_var_class = var_class.x,
              new_var_class = var_class.y)
-    
+
     if(nrow(class_changed_vars) != 0){
       class_changed_vars <<- class_changed_vars
       warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
     }
-    
+
     #Check for new responses in categorical variables (excluding new variables and class changed variables that have been previously shown)
     new_response <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
@@ -424,12 +425,12 @@ metadata_comparison <- function(new_table_metadata,
       rename(old_categorical_response_set = categorical_response_set.x,
              new_categorical_response_set = categorical_response_set.y) %>%
       select(var_name, old_categorical_response_set, new_categorical_response_set, same, in_old_not_new, in_new_not_old)
-    
+
     if(nrow(new_response) != 0){
       new_response <<- new_response
       warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
     }
-    
+
     #Create an indicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
     re_pull_polis_indicator <- FALSE
     if(nrow(new_response) != 0 |
@@ -465,15 +466,15 @@ polis_re_pull <- function(table_name,
         readRDS(cache_file) %>%
           filter(file_name != table_name) %>%
         write_rds(cache_file)
-    
+
       #create new cache entry
       init_polis_data_table(table_name, field_name)
-  
+
       #overwrited table rds with empty destination rds
       my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
                      "$inlinecount=allpages&$top=1",
-                     '&token=',load_specs()$polis$token) 
+                     '&token=',load_specs()$polis$token)
       result4 <- httr::GET(my_url4)
       result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
       empty_table <- result_content4$value %>% head(0)
@@ -481,7 +482,7 @@ polis_re_pull <- function(table_name,
   }
   #re-pull complete table
   x <- read_table_in_cache_dir(table_name)
-  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
+  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name),
                                   verbose = TRUE)
   }
 }
@@ -489,32 +490,32 @@ polis_re_pull <- function(table_name,
 
 #Input function using fx1:fx5
 
-#' @param folder      A string, the location of the polis data folder 
+#' @param folder      A string, the location of the polis data folder
 #' @param token       A string, the token for the API
 #' @param table_name  A string, matching the POLIS name of the requested data table
 #' @param field_name  A string, the name of the variable in the requested data table used to filter API query
 #' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
-#' 
-get_polis_table <- function(folder = load_specs()$polis_data_folder, 
-                            token = load_specs()$polis$token, 
+#'
+get_polis_table <- function(folder = load_specs()$polis_data_folder,
+                            token = load_specs()$polis$token,
                             table_name,
                             field_name,
                             verbose = TRUE,
                             id_vars = "Id"){
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
-  
-  #Create cache entry and blank dataframe for a POLIS data table if it does not already exist  
+
+  #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
   init_polis_data_table(table_name, field_name)
-  
+
   #Read the cache entry for the requested POLIS data table
   x <- read_table_in_cache_dir(table_name)
-  
+
   #Create an API URL and use it to query POLIS
-  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name), 
+  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name),
                                   verbose = TRUE)
-  
+
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output)){
@@ -522,11 +523,11 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                      field_name = field_name,
                      table_name = table_name)
   }
-  
+
   #If a version of the data table has been previously pulled and saved, read it's metadata file for comparison
   old_table_metadata <- read_table_metadata(table_name = table_name)
   re_pull_polis_indicator <- FALSE
-  
+
   #If both old and new metadata summaries exist, then compare them. If there are differences, then set the re_pull_polis_indicator to trigger re-pull of entire table
   if(!is.null(old_table_metadata) &
      !is.null(new_table_metadata)){
@@ -534,7 +535,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                         old_table_metadata = old_table_metadata)
   }
 
-  #If a re-pull was indicated in the metadata comparison, then re-pull the full table  
+  #If a re-pull was indicated in the metadata comparison, then re-pull the full table
   query_output_repull <- NULL
   if(re_pull_polis_indicator == TRUE){
   query_output_repull <- polis_re_pull(table_name = table_name,
@@ -548,12 +549,12 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                              table_name = table_name)
     query_output <- query_output_repull
   }
-  
+
   #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
                                       id_vars = id_vars)
-  
+
   #get metadata from combined file and save it in cache folder
   if(!is.null(new_query_output)){
   new_table_metadata <- get_polis_metadata(query_output = new_query_output,
@@ -561,12 +562,12 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                            table_name = table_name)
   write_table_metadata(new_table_metadata =  new_table_metadata)
   }
-  
+
   #Get the cache dates for the newly saved table
   get_update_cache_dates(query_output = query_output,
                          field_name = field_name,
                          table_name = table_name)
-  
+
   #Update the cache date fields
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
@@ -593,6 +594,166 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 id_vars = "Id",
                 verbose=TRUE)
 
+#Polis_data_pull_multicore is meant to replace "polis_data_pull" function, once it is working
+polis_data_pull_multicore <- function(my_url,
+                                      cycle_size = NULL){
+  #If cycle size is not specified, pull the default from the API
+  if(is.null(cycle_size)){
+    cycle_size <- nrow((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value)
+  }
+
+  #get the overall table size, used to create the cycle list
+  table_size <- as.numeric((httr::content(httr::GET(my_url),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$odata.count)
+
+  #create a list of urls with skip/top pattern
+  cycle_list <- paste0(my_url,"&$top=", cycle_size,"&$skip=", seq(0, table_size, by = cycle_size))
+
+  all_results <- NULL
+  initial_query <- my_url
+
+  #batch the urls in cycle_list into a "list of lists"
+  batch_size <- 3
+  number_of_sets <- ceiling(length(cycle_list) / batch_size)
+  list_main <- NULL
+  for(i in 1:number_of_sets){
+    start <- (i*batch_size)-batch_size+1
+    if((i*batch_size) > length(cycle_list)){
+      end <- length(cycle_list)
+    }
+    else{end <- (i*batch_size)}
+    list_main[[i]] =  as.list(cycle_list[start:end])
+  }
+
+  #For each batch of urls, run the queries in parallel for each item in the batch
+  full_results <- NULL
+
+  for(i in 1:length(list_main)) {
+    if(i == 1){    total_starttime <- Sys.time()  }
+    group_starttime <- Sys.time()
+
+    #Create cluster
+    closeAllConnections()
+    no_cores <- parallel::detectCores()-1
+    cl <- doParallel::registerDoParallel(no_cores)
+
+    #pass batch i of URLs through cluster
+    full_results[[i]] <- foreach(j=1:length(list_main[[i]]), #Currently, this works for i 1:7, regardless of the number of cores (i.e. if no_cores is set to 3, it can still run with i=1:5)
+                           .combine=c,
+                           .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
+                            (mutate_all((httr::content((httr::GET(as.character(list_main[[i]][j]))),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
+                           }
+
+    #Close cluster
+    stopImplicitCluster()
+    group_diff <- round(Sys.time() - group_starttime,0)
+    print(paste0("group ",i, ", seconds: ", group_diff))
+  }
+  total_diff <- round(as.numeric(difftime(Sys.time(), total_starttime, units="secs")),0)
+  print(paste0("total seconds: ", total_diff))
+
+
+  return(full_results)
+}
+
+#' create a URL to collect the count
+#' @param
+get_table_count <- function(table_name,
+                           min_date = as_date("2000-01-01"),
+                           field_name){
+
+  filter_url_conv <- make_url_general(
+    field_name,
+    min_date,
+    max_date
+  )
+
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$filter=",
+                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   '&token=',load_specs()$polis$token,
+                   "&$top=0") %>%
+    httr::modify_url()
+
+  response <- httr::GET(my_url)
+
+  response %>%
+    httr::content(type='text',encoding = 'UTF-8') %>%
+    jsonlite::fromJSON() %>%
+    {.$odata.count} %>%
+    as.integer() %>%
+    return()
+}
+
+#' create an array of URL's for a given table
+#' @param table_name string of a table name available in POLIS
+#' @param min_date 'date' object of earliest date acceptable for filter
+#' @param field_name string of field name used to filter date
+#' @param download_size integer specifying # of rows to download
+create_url_array <- function(table_name,
+                            min_date = as_date("2000-01-01"),
+                            max_date = NULL,
+                            field_name,
+                            download_size = 500){
+
+  filter_url_conv <- make_url_general(
+    field_name,
+    min_date,
+    max_date
+  )
+
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$filter=",
+                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+
+  table_size <- get_table_count(table_name = table_name,
+                                min_date = min_date,
+                                field_name = field_name)
+
+  urls <- paste0(my_url, "&$top=500&$skip=",seq(0,table_size,download_size))
+
+  return(urls)
+
+}
+
+
+#' get table data for a single url request
+#' @param url string of a single url
+#' @param p used as iterator in multicore processing
+get_table_data <- function(url, p){
+  p()
+
+  httr::GET(url) %>%
+    httr::content(type='text',encoding = 'UTF-8') %>%
+    jsonlite::fromJSON() %>%
+    {.$value} %>%
+    as_tibble()
+}
+
+#' multicole pull from API
+#' @param urls array of URL strings
+mc_api_pull <- function(urls){
+  p <- progressor(steps = length(urls))
+
+  future_map(urls,get_table_data, p = p) %>%
+    bind_rows()
+}
+
+#' wrapper around multicore pull to produce progress bars
+#' @param urls array of URL strings
+pb_mc_api_pull <- function(urls){
+  n_cores <- availableCores() - 1
+  plan(multicore, workers = n_cores, gc = T)
+
+  with_progress({
+    result <- mc_api_pull(urls)
+  })
+  return(result)
+  stopCluster(n_cores)
+}
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
@@ -600,18 +761,3 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 field_name = "CreatedDate",
                 id_vars = "Id",
                 verbose=TRUE)
-
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "EnvSample",
-                field_name = "LastUpdateDate",
-                id_vars = "Id",
-                verbose=TRUE)
-
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
-                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
-                table_name = "Geography",
-                field_name = "UpdatedDate",
-                id_vars = "Id",
-                verbose=TRUE)
-

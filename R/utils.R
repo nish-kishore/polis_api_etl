@@ -308,33 +308,41 @@ polis_data_pull_multicore <- function(my_url,
   all_results <- NULL
   initial_query <- my_url
   
-  #run sets of 7 queries
-  number_of_sets <- ceiling(length(cycle_list) / 7)
+  #run sets of n queries
+  api_ports <- 3
+  number_of_sets <- ceiling(length(cycle_list) / api_ports)
   list_main <- NULL
   for(i in 1:number_of_sets){
-    start <- (i*7)-6
-    if((i*7) > length(cycle_list)){
+    start <- (i*api_ports)-api_ports+1
+    if((i*api_ports) > length(cycle_list)){
       end <- length(cycle_list)
     }
-    else{end <- (i*7)}
+    else{end <- (i*api_ports)}
     list_main[[i]] =  as.list(cycle_list[start:end])
   }
   
   full_results <- NULL
-  test <- for(i in 1:length(list_main)) {
-    #run query in parallel for i=1:7
+
+  for(i in 1:length(list_main)) {
+    if(i == 1){    total_starttime <- Sys.time()  }
+    group_starttime <- Sys.time()
     closeAllConnections()
     no_cores <- parallel::detectCores()-1
-    doParallel::registerDoParallel(no_cores)
+    cl <- doParallel::registerDoParallel(no_cores)
     full_results[[i]] <- foreach(j=1:length(list_main[[i]]), #Currently, this works for i 1:7, regardless of the number of cores (i.e. if no_cores is set to 3, it can still run with i=1:5)
-                           .combine=rbind, 
+                           .combine=c, 
                            .packages = c("tidyverse", "httr", "jsonlite")) %dopar% {
                             (mutate_all((httr::content((httr::GET(as.character(list_main[[i]][j]))),type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON())$value,as.character))
                            }
     stopImplicitCluster()
-    print(i)
+    group_diff <- round(Sys.time() - group_starttime,0)
+    print(paste0("group ",i, ", seconds: ", group_diff))
   }
-  return(all_results)
+  total_diff <- round(as.numeric(difftime(Sys.time(), total_starttime, units="secs")),0)
+  print(paste0("total seconds: ", total_diff))
+  
+  
+  return(full_results)
 }  
   
 
@@ -356,7 +364,4 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "Synonym",
                 field_name = "CreatedDate",
-                verbose=TRUE)
-
-,
                 verbose=TRUE)

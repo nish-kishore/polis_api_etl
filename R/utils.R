@@ -3,7 +3,7 @@
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder 
 #' @return A string describing the creation process or errors 
-init_polis_data_struc <- function(folder, token){
+init_polis_data_struc <- function(folder, token = NULL){
   #check to see if folder exists, if not create it 
   if(!dir.exists(folder)){
     dir.create(folder)
@@ -160,10 +160,11 @@ make_url_general <- function(field_name,
 
 
 
-create_api_url <- function(table_name, latest_date, field_name){
-  table_name <<- table_name
-  latest_date <<- latest_date
-  field_name <<- field_name
+create_api_url <- function(table_name, 
+                           latest_date = as_date("2000-01-01"), 
+                           field_name){
+  table_name <- table_name
+  field_name <- field_name
   min_date <- latest_date
   max_date <- NULL
   filter_url_conv <- make_url_general(
@@ -345,8 +346,34 @@ polis_data_pull_multicore <- function(my_url,
   return(full_results)
 }  
   
-
-
+# create a URL to collect the count 
+get_table_count <- function(table_name, 
+                           min_date = as_date("2000-01-01"), 
+                           field_name){
+  
+  filter_url_conv <- make_url_general(
+    field_name,
+    min_date,
+    max_date
+  )
+  
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$filter=",
+                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   '&token=',load_specs()$polis$token,
+                   "&$top=0") %>%
+    httr::modify_url()
+  
+  response <- httr::GET(my_url)
+  
+  response %>%
+    httr::content(type='text',encoding = 'UTF-8') %>% 
+    jsonlite::fromJSON() %>%
+    {.$odata.count} %>%
+    as.integer() %>%
+    return()
+}
 
 # Examples of get_polis_table:
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",

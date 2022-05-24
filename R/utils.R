@@ -394,6 +394,7 @@ get_table_count <- function(table_name,
 #' @param download_size integer specifying # of rows to download
 create_url_array <- function(table_name, 
                             min_date = as_date("2000-01-01"), 
+                            max_date = NULL,
                             field_name,
                             download_size = 500){
   

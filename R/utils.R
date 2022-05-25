@@ -128,19 +128,6 @@ date_min_conv <- function(field_name, date_min){
          ")")
 }
 
-#convert field_name and date_max to the format needed for API query
-
-#' @param field_name The name of the field used for date filtering.
-#' @param date_max The 10 digit string for the max date.
-#' @return String compatible with API v2 syntax.
-date_max_conv <- function(field_name, date_max){
-  if(is.null(field_name) || is.null(date_max)) return(NULL)
-  paste0("(",
-         paste0(field_name, " le DateTime'",
-                date_max, "'"),
-         ")")
-}
-
 #convert field_name to the format needed for API query for null query
 
 #' @param field_name The name of the field used for date filtering.
@@ -156,18 +143,14 @@ date_null_conv <- function(field_name){
 
 #' @param field_name The date field to which to apply the date criteria, unique to each data type.
 #' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
-#' @param max_date Ten digit data string YYYY-MM-DD indicating the maximum date, default NULL.
 #' @param ... other arguments to be passed to the api
 make_url_general <- function(field_name,
-                            min_date,
-                            max_date){
+                            min_date){
 
     paste0("(",
-           paste0(c(date_min_conv(field_name, min_date),
-           date_max_conv(field_name, max_date)),
-         collapse = " and "),
-         ") or ",
-         paste0(c(date_null_conv(field_name)))) %>%
+           date_min_conv(field_name, min_date),
+         ") or (",
+         date_null_conv(field_name), ")") %>%
     paste0("&$inlinecount=allpages")
 }
 
@@ -248,7 +231,7 @@ get_update_cache_dates <- function(query_output,
     latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
 
-    #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as teh max of field_name in the old dataset
+    #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as the max of field_name in the old dataset
     if(is.null(query_output)){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
       mutate_all(.,as.character)
@@ -523,13 +506,11 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
 #' @param
 get_table_count <- function(table_name,
                            min_date = as_date("1900-01-01"),
-                           max_date = NULL,
                            field_name){
 
   filter_url_conv <- make_url_general(
     field_name,
-    min_date,
-    max_date
+    min_date
   )
 
   my_url <- paste0('https://extranet.who.int/polis/api/v2/',
@@ -580,14 +561,12 @@ get_table_count_missing <- function(table_name,
 #' @param download_size integer specifying # of rows to download
 create_url_array <- function(table_name,
                             min_date = x$latest_date,
-                            max_date = NULL,
                             field_name = x$field_name,
                             download_size = 500){
   #first, create a set of urls with the date filter
   filter_url_conv <- make_url_general(
     field_name,
-    min_date,
-    max_date
+    min_date
   )
 
   my_url <- paste0('https://extranet.who.int/polis/api/v2/',

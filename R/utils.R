@@ -222,7 +222,7 @@ get_update_cache_dates <- function(query_output,
                                    table_name){
 
     #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it
-    if(!is.null(query_output)){
+    if(!is.null(query_output) & field_name %in% colnames(query_output)){
     temp <- query_output %>%
       select(all_of(field_name)) %>%
       rename(field_name = 1) %>%
@@ -232,7 +232,8 @@ get_update_cache_dates <- function(query_output,
     }
 
     #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as the max of field_name in the old dataset
-    if(is.null(query_output)){
+    if(is.null(query_output) & field_name %in% colnames(read_lines_raw(file.path(load_specs()$polis_data_folder,
+                                                                                 paste0(table_name, ".rds")),n_max=100))){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
       mutate_all(.,as.character)
     temp <- old_polis %>%
@@ -241,6 +242,10 @@ get_update_cache_dates <- function(query_output,
       mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
       as.data.frame()
     latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
+    }
+  #If field_name is blank or not in the dataset, save latest_date as NA
+  if(!is.null(query_output) & !(field_name %in% colnames(query_output))){
+    latest_date <<- NA
   }
       #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
       updated <<- Sys.time()
@@ -513,6 +518,15 @@ get_table_count <- function(table_name,
     min_date
   )
 
+  if(field_name == "None"){
+    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                     paste0(table_name, "?"),
+                     "$inlinecount=allpages",
+                     '&token=',load_specs()$polis$token,
+                     "&$top=0") %>%
+      httr::modify_url()
+  }
+  if(field_name != "None"){
   my_url <- paste0('https://extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
@@ -520,7 +534,8 @@ get_table_count <- function(table_name,
                    '&token=',load_specs()$polis$token,
                    "&$top=0") %>%
     httr::modify_url()
-
+  }
+  
   response <- httr::GET(my_url)
 
   response %>%
@@ -530,29 +545,6 @@ get_table_count <- function(table_name,
     as.integer() %>%
     return()
 }
-
-#' @param
-get_table_count_missing <- function(table_name,
-                            field_name){
-  
-  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
-                   paste0(table_name, "?"),
-                   "$filter=(",
-                   field_name,
-                   " eq null)&$inlinecount=allpages",
-                   '&token=',load_specs()$polis$token) %>%
-    httr::modify_url()
-  
-  response <- httr::GET(my_url)
-  
-  response %>%
-    httr::content(type='text',encoding = 'UTF-8') %>%
-    jsonlite::fromJSON() %>%
-    {.$odata.count} %>%
-    as.integer() %>%
-    return()
-}
-
 
 #' create an array of URL's for a given table
 #' @param table_name string of a table name available in POLIS
@@ -568,13 +560,21 @@ create_url_array <- function(table_name,
     field_name,
     min_date
   )
-
+  if(field_name == "None"){
+    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                     paste0(table_name, "?"),
+                     "$inlinecount=allpages",
+                     '&token=',load_specs()$polis$token) %>%
+      httr::modify_url()
+  }
+  if(field_name != "None"){
   my_url <- paste0('https://extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
                    '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
+  }
 
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
@@ -623,4 +623,47 @@ pb_mc_api_pull <- function(urls){
   stopCluster(n_cores)
 }
 
-
+load_defaults <- function(){
+  defaults <- as.data.frame(bind_rows(
+    c(table_name_descriptive = "Activity", table_name = "Activity", field_name = "LastUpdateDate", id_vars ="Id"),
+    c(table_name_descriptive = "Case", table_name = "Case", field_name = "LastUpdateDate", id_vars ="Id"),
+    c(table_name_descriptive = "Environmental Sample", table_name = "EnvSample", field_name = "LastUpdateDate", id_vars ="Id"),
+    c(table_name_descriptive = "Geography", table_name = "Geography", field_name = "UpdatedDate", id_vars ="Id"),
+    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: AFP cases", table_name = "Indicator('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "Indicator('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "Indicator('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "Indicator('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "Indicator('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "Indicator('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "Indicator('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "Indicator('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "Indicator('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "Indicator('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name_descriptive = "", table_name = "Indicator('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "Indicator('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "Indicator('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "Indicator('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "Indicator('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "Indicator('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "Indicator('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "Indicator('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "Indicator('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "Indicator('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "Indicator('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "Indicator('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "Indicator('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "Indicator('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "Indicator('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "Indicator('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId"),
+    c(table_name_descriptive = "Lab Specimen", table_name = "LabSpecimen", field_name = "LastUpdateDate", id_vars ="Id"),
+    c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "Start", id_vars ="Id"),
+    c(table_name_descriptive = "Population", table_name = "Population", field_name = "UpdatedDate", id_vars ="Id"),
+    c(table_name_descriptive = "Reference Data", table_name = "RefData('REF_DATA')", field_name = "Code", id_vars ="Id"),
+    c(table_name_descriptive = "LQAS", table_name = "", field_name = "Start", id_vars ="Id"),
+    c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "Start", id_vars ="Id"),
+    c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "Start", id_vars ="Id"),
+  ))
+}

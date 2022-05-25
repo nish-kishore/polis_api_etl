@@ -34,4 +34,16 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 id_vars = "Id",
                 verbose=TRUE)
 
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "IndicatorValue('AFP_DOSE_0')",
+                field_name = "LastUpdateDate",
+                id_vars = "Id",
+                verbose=TRUE)
 
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "RefData('ActivityCategories')",
+                field_name = "None",
+                id_vars = "Id",
+                verbose=TRUE)

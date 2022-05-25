@@ -88,19 +88,6 @@ init_polis_data_table <- function(table_name, field_name){
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
-
-    #Create empty destination rds
-      #Get colnames for empty destination rds
-        my_url4 <-  paste0('https://extranet.who.int/polis/api/v2/',
-                           paste0(table_name, "?"),
-                           "$inlinecount=allpages&$top=1",
-                           '&token=',load_specs()$polis$token)
-        result4 <- httr::GET(my_url4)
-        result_content4 <- httr::content(result4, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-      #save colnames and 0 rows as empty dataframe
-      empty_table <- result_content4$value %>% head(0)
-
-      write_rds(empty_table, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
   }
 }
 
@@ -121,7 +108,7 @@ read_table_in_cache_dir <- function(table_name){
                          filter(file_name == table_name))$file_name
       field_name <- (readRDS(cache_file) %>%
                        filter(file_name == table_name))$date_field
-  }
+    }
   return(list = list("updated" = updated, "latest_date" = latest_date, "field_name" = field_name))
 }
 
@@ -154,7 +141,18 @@ date_max_conv <- function(field_name, date_max){
          ")")
 }
 
-#make_url_general (Note: this is copied from idm_polis_api)
+#convert field_name to the format needed for API query for null query
+
+#' @param field_name The name of the field used for date filtering.
+#' @return String compatible with API v2 syntax.
+date_null_conv <- function(field_name){
+  if(is.null(field_name)) return(NULL)
+  paste0("(",
+         paste0(field_name, " eq null",
+                ")"))
+}
+
+#make_url_general (Note: this is copied from idm_polis_api, with null added)
 
 #' @param field_name The date field to which to apply the date criteria, unique to each data type.
 #' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
@@ -162,13 +160,14 @@ date_max_conv <- function(field_name, date_max){
 #' @param ... other arguments to be passed to the api
 make_url_general <- function(field_name,
                             min_date,
-                            max_date,
-                            ...){
+                            max_date){
 
-  paste0(c(date_min_conv(field_name, min_date),
+    paste0("(",
+           paste0(c(date_min_conv(field_name, min_date),
            date_max_conv(field_name, max_date)),
-         collapse = " and ") %>%
-    paste0(...) %>%
+         collapse = " and "),
+         ") or ",
+         paste0(c(date_null_conv(field_name)))) %>%
     paste0("&$inlinecount=allpages")
 }
 
@@ -178,7 +177,7 @@ append_and_save <- function(query_output = query_output,
                             table_name = table_name){
 
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
-  if(!is.null(query_output)){
+  if(!is.null(query_output) & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
@@ -206,6 +205,29 @@ append_and_save <- function(query_output = query_output,
     #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
       #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
       if(table_count2 != nrow(old_polis) + nrow(query_output)){
+      stop("Table is incomplete: check id_vars and field_name")
+  }
+}
+  if(!is.null(query_output) & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+    #check that the combined total row number matches POLIS table row number before appending
+    #Get full table size for comparison to what was pulled via API, saved as "table_count2"
+    my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+                       paste0(table_name, "?"),
+                       "$inlinecount=allpages&$top=0",
+                       '&token=',load_specs()$polis$token) %>%
+      httr::modify_url()
+    result2 <- httr::GET(my_url2)
+    result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    table_count2 <- as.numeric(result_content2$odata.count)
+    
+    #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
+    if(table_count2 == nrow(query_output)){
+      new_query_output <- query_output 
+      
+      write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+      return(new_query_output)
+    }
+    if(table_count2 != nrow(query_output)){
       stop("Table is incomplete: check id_vars and field_name")
   }
 }
@@ -366,13 +388,11 @@ polis_re_pull <- function(table_name,
       #create new cache entry
       init_polis_data_table(table_name, field_name)
 
-      #overwrite table rds with empty destination rds
-      write_rds(data.frame(matrix(ncol=0, nrow=0)), file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+      #delete previous rds
+      if(file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+         file.remove(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+      }
   }
-  #re-pull complete table
-  x <- read_table_in_cache_dir(table_name)
-  query_output <- polis_data_pull(my_url = create_api_url(table_name, as.Date(x$updated, "%Y-%m-%d"), x$field_name),
-                                  verbose = TRUE)
   }
 }
 
@@ -394,16 +414,30 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             id_vars = "Id"){
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
-
+  
+  #If cache entry exists for a POLIS data table, check if the field_name is the same as requested
+    #If different, then set re-pull indicator to TRUE
+        field_name_change <<- FALSE        
+        cache_dir <- file.path(folder, "cache_dir")
+        cache_file <- file.path(cache_dir, "cache.rds")
+        #if a row with the table_name exists within cache, then pull the values from that row
+        if(nrow(read_cache(.file_name = table_name)) != 0){
+          old_field_name <- (readRDS(cache_file) %>%
+                           filter(file_name == table_name))$date_field
+          field_name_change <<- field_name != old_field_name
+        }
+  
   #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
   init_polis_data_table(table_name, field_name)
 
   #Read the cache entry for the requested POLIS data table
+  x <- NULL
   x <- read_table_in_cache_dir(table_name)
-
+  
   #Create an API URL and use it to query POLIS
   urls <- create_url_array(table_name = table_name,
-                           field_name = field_name)
+                           field_name = x$field_name,
+                           min_date = x$latest_date)
   
   query_output <- pb_mc_api_pull(urls)  
   
@@ -415,6 +449,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
 
   #If a version of the data table has been previously pulled and saved, read it in and summarize it's metadata for comparison
+  old_table_metadata <- NULL
   if(file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds"))) == TRUE){
     old_table_metadata <- get_polis_metadata(query_output = readRDS( file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds"))),
                                              table_name = table_name)
@@ -429,15 +464,29 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                         old_table_metadata = old_table_metadata)
   }
 
+  #If field_name has changed then indicate re-pull
+  
+  if(!is.null(field_name_change)){
+    if(field_name_change == TRUE){
+      re_pull_polis_indicator <- TRUE
+    }
+  }
+
   #If a re-pull was indicated in the metadata comparison, then re-pull the full table
-  query_output_repull <- NULL
+  polis_re_pull(table_name = table_name,
+                field_name = field_name,
+                re_pull_polis_indicator = re_pull_polis_indicator)
+  
   if(re_pull_polis_indicator == TRUE){
+    
     #Read the cache entry for the requested POLIS data table
+    x <- NULL
     x <- read_table_in_cache_dir(table_name)
     
     #Create an API URL and use it to query POLIS
     urls <- create_url_array(table_name = table_name,
-                             field_name = field_name)
+                             field_name = x$field_name,
+                             min_date = x$latest_date)
     
     query_output <- pb_mc_api_pull(urls)  
   }
@@ -473,7 +522,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
 #' create a URL to collect the count where field_name is not missing
 #' @param
 get_table_count <- function(table_name,
-                           min_date = as_date("2000-01-01"),
+                           min_date = as_date("1900-01-01"),
+                           max_date = NULL,
                            field_name){
 
   filter_url_conv <- make_url_general(
@@ -540,7 +590,7 @@ create_url_array <- function(table_name,
     max_date
   )
 
-  my_url1 <- paste0('https://extranet.who.int/polis/api/v2/',
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
@@ -551,26 +601,7 @@ create_url_array <- function(table_name,
                                 min_date = min_date,
                                 field_name = field_name)
 
-  urls1 <- paste0(my_url1, "&$top=", download_size, "&$skip=",seq(0,table_size, by = download_size))
-  
-  #second create a set of urls filtered to where the date field is missing
-  my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
-                    paste0(table_name, "?"),
-                           "$filter=(",
-                           field_name,
-                           " eq null)&$inlinecount=allpages",
-                           '&token=',load_specs()$polis$token) %>%
-                      httr::modify_url()
-  
-  table_size_missing <- get_table_count_missing(table_name = table_name,
-                                                field_name = field_name)
-  if(table_size_missing != 0){
-  urls2 <- paste0(my_url2, "&$top=", download_size, "&$skip=",seq(0,table_size_missing, by = download_size))
-  urls <- c(urls1, urls2)
-  }
-  if(table_size_missing == 0){
-  urls <- urls1
-  }
+  urls <- paste0(my_url, "&$top=", download_size, "&$skip=",seq(0,table_size, by = download_size))
   
   return(urls)
 

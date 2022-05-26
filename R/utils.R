@@ -67,8 +67,6 @@ update_cache <- function(.file_name,
   tmp <- readRDS(cache_file)
   tmp[which(tmp$file_name == .file_name),.val_to_update] <- .val
   write_rds(tmp, cache_file)
-  print("Cache updated!")
-  return(tmp[which(tmp$file_name == .file_name),])
 }
 
 

@@ -9,6 +9,7 @@
 #' @import RCurl
 #' @import curl
 #' @import utils
+#' @import skimr
 NULL
 
-pacman::p_load(yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils)
+pacman::p_load(yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, skimr)

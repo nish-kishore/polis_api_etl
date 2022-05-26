@@ -800,14 +800,14 @@ prompt_user_input <- function(){
                        mutate(table_name_descriptive = str_remove(table_name_descriptive, "Reference Data: ")))$table_name_descriptive
   table_input <- table_list[utils::menu(table_list, title="Select a POLIS table to download:")]
   if(table_input == "Indicator"){
-    indicator_input <- indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")]
+    indicator_input <- paste0("Indicator: ", indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")])
     table_defaults <- defaults %>%
-      filter(grepl(indicator_input, table_name_descriptive))
+      filter(indicator_input == table_name_descriptive)
   }
   if(table_input == "Reference Data"){
-    reference_input <- indicator_list[utils::menu(reference_list, title="Select a Reference Table to download:")]
+    reference_input <- paste0("Reference Data: ", reference_list[utils::menu(reference_list, title="Select a Reference Table to download:")])
     table_defaults <- defaults %>%
-      filter(grepl(reference_input, table_name_descriptive))
+      filter(reference_input == table_name_descriptive)
   }
   if(!(table_input %in% c("Indicator", "Reference Data"))){
     table_defaults <- defaults %>%

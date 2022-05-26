@@ -183,8 +183,6 @@ append_and_save <- function(query_output = query_output,
     if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
-    #write to env
-    assign(quo_name(enquo(table_name)), new_query_output, envir=.GlobalEnv)
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
@@ -211,8 +209,6 @@ append_and_save <- function(query_output = query_output,
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
     if(table_count2 == nrow(query_output)){
       new_query_output <- query_output 
-      #write to env
-      assign(quo_name(enquo(table_name)), new_query_output, envir=.GlobalEnv)
       #save to file
       write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       return(new_query_output)
@@ -235,7 +231,7 @@ get_update_cache_dates <- function(query_output,
       rename(field_name = 1) %>%
       mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
       as.data.frame()
-    latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
+    latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
 
     #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as the max of field_name in the old dataset
@@ -248,14 +244,16 @@ get_update_cache_dates <- function(query_output,
       rename(field_name = 1) %>%
       mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
       as.data.frame()
-    latest_date <<- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
+    latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
   #If field_name is blank or not in the dataset, save latest_date as NA
   if(!is.null(query_output) & !(field_name %in% colnames(query_output))){
-    latest_date <<- NA
+    latest_date <- NA
   }
       #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
-      updated <<- Sys.time()
+      updated <- Sys.time()
+  update_cache_dates <- as.data.frame(bind_rows(c(latest_date = latest_date, updated = updated)))
+  return(update_cache_dates)
 }
 
 #Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
@@ -297,7 +295,7 @@ metadata_comparison <- function(new_table_metadata,
       filter(is.na(var_class.x)))$var_name
 
     if(length(new_vars) != 0){
-      new_vars <<- new_vars
+      new_vars <- new_vars
       warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
     }
 
@@ -305,7 +303,7 @@ metadata_comparison <- function(new_table_metadata,
       filter(is.na(var_class.y)))$var_name
 
     if(length(lost_vars) != 0){
-      lost_vars <<- lost_vars
+      lost_vars <- lost_vars
       warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
     }
 
@@ -319,7 +317,7 @@ metadata_comparison <- function(new_table_metadata,
              new_var_class = var_class.y)
 
     if(nrow(class_changed_vars) != 0){
-      class_changed_vars <<- class_changed_vars
+      class_changed_vars <- class_changed_vars
       warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
     }
 
@@ -340,7 +338,7 @@ metadata_comparison <- function(new_table_metadata,
       select(var_name, old_categorical_response_set, new_categorical_response_set, same, in_old_not_new, in_new_not_old)
 
     if(nrow(new_response) != 0){
-      new_response <<- new_response
+      new_response <- new_response
       warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
     }
 
@@ -351,13 +349,14 @@ metadata_comparison <- function(new_table_metadata,
        length(lost_vars) != 0 |
        length(new_vars) != 0){
       re_pull_polis_indicator <- TRUE
-    }
+      }
     }
   }
-  else{
+  if(is.null(new_table_metadata) | is.null(old_table_metadata)){
     re_pull_polis_indicator <- FALSE
   }
-  return(re_pull_polis_indicator)
+  change_summary <- list(re_pull_polis_indicator = re_pull_polis_indicator, new_response = new_response, class_changed_vars = class_changed_vars, lost_vars = lost_vars, new_vars = new_vars)
+  return(change_summary)
 }
 
 #If re_pull_polis_indicator is TRUE, then re-pull the complete table
@@ -406,23 +405,6 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             field_name = NULL,
                             id_vars = NULL){
   
-  #NOTE: Commented section to get user input folder/token is not working yet
-  #Get user input for folder and token, if not available in cache
-    #check if in cache
-  #   if(!is.null(folder)){
-  #     if(file.exists(file.path(folder,'cache_dir','specs.yaml')){
-  #       folder <- load_specs()$polis_data_folder
-  #       token <- load_specs()$polis$token
-  #     }
-  #   }
-  #   #if not in cache, then input
-  # if(is.null(folder) | is.null(token)){
-  #   folder_token <- prompt_folder_token(folder = folder,
-  #                                       token = token)
-  #   folder <- folder_token$folder
-  #   token <- folder_token$token
-  # }
-  
   #Get user input for which table to pull if not specified
   if(is.null(table_name) | is.null(field_name) | is.null(id_vars)){
     table_defaults <- prompt_user_input()
@@ -436,14 +418,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #If cache entry exists for a POLIS data table, check if the field_name is the same as requested
     #If different, then set re-pull indicator to TRUE
-        field_name_change <<- FALSE        
+        # field_name_change <- FALSE        
         cache_dir <- file.path(folder, "cache_dir")
         cache_file <- file.path(cache_dir, "cache.rds")
         #if a row with the table_name exists within cache, then pull the values from that row
         if(nrow(read_cache(.file_name = table_name)) != 0){
           old_field_name <- (readRDS(cache_file) %>%
                            filter(file_name == table_name))$date_field
-          field_name_change <<- field_name != old_field_name
+          field_name_change <- field_name != old_field_name
         }
   
   #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
@@ -480,7 +462,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   if(!is.null(old_table_metadata) &
      !is.null(new_table_metadata)){
     re_pull_polis_indicator <- metadata_comparison(new_table_metadata = new_table_metadata,
-                        old_table_metadata = old_table_metadata)
+                        old_table_metadata = old_table_metadata)$re_pull_polis_indicator
   }
 
   #If field_name has changed then indicate re-pull
@@ -516,19 +498,19 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                       id_vars = id_vars)
 
   #Get the cache dates for the newly saved table
-  get_update_cache_dates(query_output = new_query_output,
+  update_cache_dates <- get_update_cache_dates(query_output = new_query_output,
                          field_name = field_name,
                          table_name = table_name)
 
   #Update the cache date fields
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
-               .val = latest_date,
+               .val = as.Date(update_cache_dates$latest_date), 
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
   update_cache(.file_name = table_name,
                .val_to_update = "updated",
-               .val = updated,
+               .val = as.POSIXct(update_cache_dates$updated, tz=Sys.timezone(), origin=lubridate::origin),
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
   update_cache(.file_name = table_name,

@@ -48,7 +48,8 @@ load_specs <- function(folder = Sys.getenv("polis_data_folder")){
 #' Read cache and return information
 #' @param .file_name A string describing the file name for which you want information
 #' @return tibble row which can be atomically accessed
-read_cache <- function(.file_name, cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
+read_cache <- function(.file_name = table_name,
+                       cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
   readRDS(cache_file) %>%
     filter(file_name == .file_name)
 }
@@ -72,7 +73,8 @@ update_cache <- function(.file_name,
 
 
 #fx1: check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
-init_polis_data_table <- function(table_name, field_name){
+init_polis_data_table <- function(table_name = table_name,
+                                  field_name = field_name){
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
@@ -181,6 +183,9 @@ append_and_save <- function(query_output = query_output,
     if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
+    #write to env
+    assign(quo_name(enquo(table_name)), new_query_output, envir=.GlobalEnv)
+    #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
     }
@@ -206,7 +211,9 @@ append_and_save <- function(query_output = query_output,
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
     if(table_count2 == nrow(query_output)){
       new_query_output <- query_output 
-      
+      #write to env
+      assign(quo_name(enquo(table_name)), new_query_output, envir=.GlobalEnv)
+      #save to file
       write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       return(new_query_output)
     }
@@ -391,15 +398,39 @@ polis_re_pull <- function(table_name,
 #' @param token       A string, the token for the API
 #' @param table_name  A string, matching the POLIS name of the requested data table
 #' @param field_name  A string, the name of the variable in the requested data table used to filter API query
-#' @param verbose     A logic value (T/F), used to indicate if progress notes should be printed while API query is running
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
 #'
 get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             token = load_specs()$polis$token,
-                            table_name,
-                            field_name,
-                            verbose = TRUE,
-                            id_vars = "Id"){
+                            table_name = NULL,
+                            field_name = NULL,
+                            id_vars = NULL){
+  
+  #NOTE: Commented section to get user input folder/token is not working yet
+  #Get user input for folder and token, if not available in cache
+    #check if in cache
+  #   if(!is.null(folder)){
+  #     if(file.exists(file.path(folder,'cache_dir','specs.yaml')){
+  #       folder <- load_specs()$polis_data_folder
+  #       token <- load_specs()$polis$token
+  #     }
+  #   }
+  #   #if not in cache, then input
+  # if(is.null(folder) | is.null(token)){
+  #   folder_token <- prompt_folder_token(folder = folder,
+  #                                       token = token)
+  #   folder <- folder_token$folder
+  #   token <- folder_token$token
+  # }
+  
+  #Get user input for which table to pull if not specified
+  if(is.null(table_name) | is.null(field_name) | is.null(id_vars)){
+    table_defaults <- prompt_user_input()
+    table_name <- table_defaults$table_name
+    field_name <- table_defaults$field_name
+    id_vars <- table_defaults$id_vars
+  }
+  
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
   
@@ -742,4 +773,46 @@ load_defaults <- function(){
     c(table_name_descriptive = "Synonym", table_name = "Synonym", field_name = "UpdatedDate", id_vars ="Id"),
     c(table_name_descriptive = "Virus", table_name = "Virus", field_name = "UpdatedDate", id_vars ="Id")
   ))
+  return(defaults)
 }
+
+prompt_folder_token <- function(folder = folder, 
+                                token = token){
+  if(is.null(folder)){
+    folder <- utils::menu(folder, title="Enter a folder pathway where the data will be stored:")
+  }
+  if(is.null(token)){
+    token <- utils::menu(token, title="Enter a token for the WHO POLIS API:")
+  }
+  folder_and_token <- as.data.frame(c("folder" = folder, "token" = token))
+  return(folder_and_token)
+}
+
+prompt_user_input <- function(){
+  defaults <- load_defaults()
+  table_list <- c((defaults %>%
+                   filter(!grepl("Indicator", table_name) & !grepl("RefData", table_name)))$table_name_descriptive, "Indicator", "Reference Data")
+  indicator_list <- (defaults %>%
+                      filter(grepl("Indicator", table_name) & !grepl("RefData", table_name)) %>%
+                      mutate(table_name_descriptive = str_remove(table_name_descriptive, "Indicator: ")))$table_name_descriptive
+  reference_list <- (defaults %>%
+                       filter(grepl("RefData", table_name)) %>%
+                       mutate(table_name_descriptive = str_remove(table_name_descriptive, "Reference Data: ")))$table_name_descriptive
+  table_input <- table_list[utils::menu(table_list, title="Select a POLIS table to download:")]
+  if(table_input == "Indicator"){
+    indicator_input <- indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")]
+    table_defaults <- defaults %>%
+      filter(grepl(indicator_input, table_name_descriptive))
+  }
+  if(table_input == "Reference Data"){
+    reference_input <- indicator_list[utils::menu(reference_list, title="Select a Reference Table to download:")]
+    table_defaults <- defaults %>%
+      filter(grepl(reference_input, table_name_descriptive))
+  }
+  if(!(table_input %in% c("Indicator", "Reference Data"))){
+    table_defaults <- defaults %>%
+      filter(table_input == table_name_descriptive)
+  }
+  return(table_defaults)
+  }
+

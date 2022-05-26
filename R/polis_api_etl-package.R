@@ -12,4 +12,4 @@
 #' @import skimr
 NULL
 
-pacman::p_load(yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, skimr)
+pacman::p_load(skimr, yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils)

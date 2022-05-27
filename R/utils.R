@@ -412,7 +412,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             table_name = NULL,
                             field_name = NULL,
                             id_vars = NULL,
-                            download_size = NULL){
+                            download_size = NULL,
+                            table_name_descriptive = NULL){
   
   #Get user input for which table to pull if not specified
   if(is.null(table_name) | is.null(field_name) | is.null(id_vars) | is.null(download_size)){
@@ -450,13 +451,18 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
-  
+  query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
-  
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
-  new_table_metadata <- get_polis_metadata(query_output = query_output,
+    if(is.null(table_name_descriptive)){
+      table_name_descriptive <- table_name
+    }
+    print(paste0("Downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+    new_table_metadata <- get_polis_metadata(query_output = query_output,
                                            table_name = table_name)
   }
 
@@ -833,8 +839,9 @@ get_polis_data <- function(folder = NULL,
     }
     
   #run get_polis_table iteratively over all tables
-  defaults <- load_defaults() %>%
-    filter(grepl("RefData", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+  defaults <- load_defaults() 
+  # %>%
+  #   filter(grepl("RefData", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
   for(i in 1:nrow(defaults)){
     table_name <- defaults$table_name[i]
     field_name <- defaults$field_name[i]
@@ -847,7 +854,8 @@ get_polis_data <- function(folder = NULL,
                     table_name = table_name,
                     field_name = field_name,
                     id_vars = id_vars,
-                    download_size = download_size)
+                    download_size = download_size,
+                    table_name_descriptive = table_name_descriptive)
   }
 }
 

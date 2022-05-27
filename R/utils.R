@@ -834,12 +834,14 @@ get_polis_data <- function(folder = NULL,
     
   #run get_polis_table iteratively over all tables
   defaults <- load_defaults() %>%
-    filter(grepl("RefData", table_name))
+    filter(grepl("RefData", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
   for(i in 1:nrow(defaults)){
     table_name <- defaults$table_name[i]
     field_name <- defaults$field_name[i]
     id_vars <- defaults$id_vars[i]
     download_size <- as.numeric(defaults$download_size[i])
+    table_name_descriptive <- defaults$table_name_descriptive[i]
+    print(paste0("Downloading ", table_name_descriptive," Table [", i,"/", nrow(defaults),"]"))
     get_polis_table(folder = load_specs()$polis_data_folder,
                     token = load_specs()$polis$token,
                     table_name = table_name,

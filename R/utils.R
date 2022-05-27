@@ -428,7 +428,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #If cache entry exists for a POLIS data table, check if the field_name is the same as requested
     #If different, then set re-pull indicator to TRUE
-        # field_name_change <- FALSE        
+        field_name_change <- NULL
         cache_dir <- file.path(folder, "cache_dir")
         cache_file <- file.path(cache_dir, "cache.rds")
         #if a row with the table_name exists within cache, then pull the values from that row
@@ -503,11 +503,19 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     #Create an API URL and use it to query POLIS
     urls <- create_url_array(table_name = table_name,
                              field_name = x$field_name,
-                             min_date = x$latest_date)
+                             min_date = x$latest_date,
+                             download_size = download_size)
     
-    query_output <- pb_mc_api_pull(urls)  
-  }
-
+    query_start_time <- Sys.time()
+    query_output <- pb_mc_api_pull(urls)
+    query_stop_time <- Sys.time()
+    query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+    if(!is.null(query_output) & nrow(query_output)>0){
+      print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+    }
+    }
+  
+ 
   #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
@@ -610,7 +618,7 @@ create_url_array <- function(table_name,
                                 min_date = min_date,
                                 field_name = field_name)
 
-  urls <- paste0(my_url, "&$top=", download_size, "&$skip=",seq(0,table_size, by = download_size))
+  urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
   
   return(urls)
 
@@ -838,9 +846,8 @@ get_polis_data <- function(folder = NULL,
     }
     
   #run get_polis_table iteratively over all tables
-  defaults <- load_defaults() 
-  # %>%
-  #   filter(grepl("RefData", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+  defaults <- load_defaults() %>%
+    filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
   for(i in 1:nrow(defaults)){
     table_name <- defaults$table_name[i]
     field_name <- defaults$field_name[i]

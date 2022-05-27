@@ -863,6 +863,7 @@ get_polis_data <- function(folder = NULL,
                     download_size = download_size,
                     table_name_descriptive = table_name_descriptive)
   }
+  cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
 }
 
 #Run a simple API call to check if the user-provided token is valid

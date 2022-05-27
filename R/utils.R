@@ -3,7 +3,7 @@
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder
 #' @return A string describing the creation process or errors
-init_polis_data_struc <- function(folder, token = NULL){
+init_polis_data_struc <- function(folder, token){
   #check to see if folder exists, if not create it
   if(!dir.exists(folder)){
     dir.create(folder)
@@ -29,12 +29,16 @@ init_polis_data_struc <- function(folder, token = NULL){
   #create specs yaml
   specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
   if(!file.exists(specs_yaml)){
+    if(is.null(token)){token <- ''}
     yaml_out <- list()
     yaml_out$polis$token <- token
     yaml_out$polis_data_folder <- folder
     write_yaml(yaml_out, specs_yaml)
   }
   Sys.setenv("polis_data_folder" = folder)
+  if(token != "" & !is.null(token)){
+  Sys.setenv("token" = token)
+  }
 }
 
 #' Load authorizations and local config
@@ -789,3 +793,55 @@ prompt_user_input <- function(){
   return(table_defaults)
   }
 
+get_polis_data <- function(folder = NULL,
+                           token = "",
+                           verbose=TRUE){
+  
+
+  #If folder location and token not provided, prompt user for input:
+  
+  if (is.null(folder) && interactive() && .Platform$OS.type == "windows"){
+    folder <- utils::choose.dir(default = getwd(), caption = "Select a folder where POLIS data will be saved:")
+  }
+  
+  #If folder structure and cache not created already, create them
+  init_polis_data_struc(folder=folder, token=token)
+    
+  #If token not provided, check for it in cache. 
+    if(load_specs()$polis$token == ""){
+      # If not in cache, if the token was provided as a function parameter, use that, else prompt for token entry
+        valid_token <- TRUE
+        if(token == ""){
+          token <- readline("Enter POLIS APIv2 Token: ")
+        }  
+        #Check if token is valid, stop if not
+        valid_token <- validate_token(token)
+        if(valid_token == FALSE){
+          stop("Invalid token.")
+        }
+    #save new token to specs yaml
+      specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
+      specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
+      specs$polis$token <- token
+      write_yaml(specs, specs_yaml)
+      Sys.setenv("token" = token)
+    }
+    
+  #run get_polis_table iteratively over all tables
+  get_polis_table()
+}
+
+#Run a simple API call to check if the user-provided token is valid
+validate_token <- function(token = token){
+  my_url_test <-  paste0('https://extranet.who.int/polis/api/v2/',
+                         'Case?',
+                     "$inlinecount=allpages&$top=0",
+                     '&token=',token) %>%
+                  httr::modify_url()
+  result_test <- httr::GET(my_url_test)$status
+  valid_token <- TRUE
+  if(result_test != 200){
+    valid_token <- FALSE
+  }
+  return(valid_token)
+}

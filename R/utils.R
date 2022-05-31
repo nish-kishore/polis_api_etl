@@ -813,7 +813,8 @@ prompt_user_input <- function(){
 
 get_polis_data <- function(folder = NULL,
                            token = "",
-                           verbose=TRUE){
+                           verbose=TRUE,
+                           dev = FALSE){
   
 
   #If folder location and token not provided, prompt user for input:
@@ -845,9 +846,17 @@ get_polis_data <- function(folder = NULL,
       Sys.setenv("token" = token)
     }
     
-  #run get_polis_table iteratively over all tables
+  #Get default POLIS table names, field names, and download sizes
+  if(dev == TRUE){
   defaults <- load_defaults() %>%
     filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+  }
+  if(dev == FALSE){
+    defaults <- load_defaults()
+  }
+  
+  #run get_polis_table iteratively over all tables
+  
   for(i in 1:nrow(defaults)){
     table_name <- defaults$table_name[i]
     field_name <- defaults$field_name[i]

@@ -845,7 +845,10 @@ get_polis_data <- function(folder = NULL,
       write_yaml(specs, specs_yaml)
       Sys.setenv("token" = token)
     }
-    
+  
+  #Archive all data files in the POLIS data folder
+  archive_last_data()  
+  
   #Get default POLIS table names, field names, and download sizes
   if(dev == TRUE){
   defaults <- load_defaults() %>%
@@ -888,4 +891,53 @@ validate_token <- function(token = token){
     valid_token <- FALSE
   }
   return(valid_token)
+}
+
+#Function that moves the rds files in the polis_data folder to an archive folder
+archive_last_data <- function(archive_folder = NULL, #folder pathway where the datasets will be archived
+                              n_archive = 3 #Number of most-recent datasets to save in archive, per table
+                              ){
+  #If archive_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(archive_folder)){
+    archive_folder = paste0(load_specs()$polis_data_folder,"\\archive")
+    if(file.exists(archive_folder) == FALSE){
+      dir.create(archive_folder)
+      }
+  }
+  
+  #Get list of rds files to archive from polis_data_folder
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #for each item in current_files list, check if an archive subfolder exists, and if not then create it
+  for(i in current_files){  
+    if(file.exists(paste0(archive_folder, "\\", i)) == FALSE){
+        dir.create(paste0(archive_folder, "\\", i))
+    }
+    #for each item in current_files:
+      #delete the oldest file in it's subfolder if there are >= n_archive files in the subfolder
+      archive_list <- list.files(paste0(archive_folder, "\\", i)) %>%
+        stringr::str_subset(., pattern=".rds") %>%
+        stringr::str_remove(., pattern=".rds")
+        archive_list_timestamp <- c()
+        for(j in archive_list){
+          timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+          archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
+        }
+      oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
+        mutate(timestamp   = as.POSIXct(timestamp)) %>%
+        arrange(timestamp) %>%
+        slice(1))$file %>%
+        paste0(., ".rds")
+      if(length(archive_list) >= n_archive){
+        file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
+      }
+      #write the current file to the archive subfolder
+      current_file_timestamp <- file.info(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))$ctime[1]
+      current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+      write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
+      #remove the current file from the main folder
+      file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+  }
 }

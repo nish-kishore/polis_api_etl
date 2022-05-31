@@ -941,3 +941,38 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
       file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
 }
+
+
+revert_from_archive <- function(last_good_date = Sys.Date()-1){
+  folder <- load_specs()$polis_data_folder
+  archive_folder <- paste0(load_specs()$polis_data_folder,"\\archive")
+  
+  #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
+    #get directory of subfolders
+      subfolder_list <- list.files(archive_folder)
+    #for each item in subfolder_list, get all file names then subset to most recent
+      for(i in subfolder_list){
+        subfolder_files <- list.files(paste0(archive_folder, "\\", i))
+        file_dates <- c()
+        for(j in subfolder_files){
+          file_date <- file.info(paste0(archive_folder, "\\", i, "\\", j))$ctime[1]
+          file_dates <- c(file_dates, file_date)
+        }
+        file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+          filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
+          arrange(desc(create_date)) %>%
+          slice(1))$name
+        #load file to keep
+        file_to_keep <- readRDS(paste0(archive_folder, "\\", i, "\\", file_to_keep))
+        #write file to keep to data folder
+        write_rds(file_to_keep, paste0(folder,"\\",i,".rds"))
+      }
+}
+
+force_update_cache <- function(){
+  #read in cache
+  #if file is no longer in data folder, remove entry from cache
+  #if file is in data folder but not cache, add entry to cache
+  #update the created, updated, and latest dates in the cache
+}

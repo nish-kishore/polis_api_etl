@@ -70,6 +70,7 @@ get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
                dev = TRUE)
 
 revert_from_archive(last_good_date = Sys.Date())
+revert_from_archive()
 
 
 

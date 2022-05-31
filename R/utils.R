@@ -3,7 +3,7 @@
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder
 #' @return A string describing the creation process or errors
-init_polis_data_struc <- function(folder, token = NULL){
+init_polis_data_struc <- function(folder, token){
   #check to see if folder exists, if not create it
   if(!dir.exists(folder)){
     dir.create(folder)
@@ -29,12 +29,16 @@ init_polis_data_struc <- function(folder, token = NULL){
   #create specs yaml
   specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
   if(!file.exists(specs_yaml)){
+    if(is.null(token)){token <- ''}
     yaml_out <- list()
     yaml_out$polis$token <- token
     yaml_out$polis_data_folder <- folder
     write_yaml(yaml_out, specs_yaml)
   }
   Sys.setenv("polis_data_folder" = folder)
+  if(token != "" & !is.null(token)){
+  Sys.setenv("token" = token)
+  }
 }
 
 #' Load authorizations and local config
@@ -67,8 +71,6 @@ update_cache <- function(.file_name,
   tmp <- readRDS(cache_file)
   tmp[which(tmp$file_name == .file_name),.val_to_update] <- .val
   write_rds(tmp, cache_file)
-  print("Cache updated!")
-  return(tmp[which(tmp$file_name == .file_name),])
 }
 
 
@@ -162,7 +164,7 @@ append_and_save <- function(query_output = query_output,
                             table_name = table_name){
 
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
-  if(!is.null(query_output) & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+  if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
@@ -194,7 +196,7 @@ append_and_save <- function(query_output = query_output,
       stop("Table is incomplete: check id_vars and field_name")
   }
 }
-  if(!is.null(query_output) & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+  if(!is.null(query_output) & nrow(query_output) > 0 & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
     #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
@@ -225,7 +227,7 @@ get_update_cache_dates <- function(query_output,
                                    table_name){
 
     #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it
-    if(!is.null(query_output) & field_name %in% colnames(query_output)){
+    if(!is.null(query_output) && nrow(query_output) > 0 && field_name %in% colnames(query_output)){
     temp <- query_output %>%
       select(all_of(field_name)) %>%
       rename(field_name = 1) %>%
@@ -235,7 +237,7 @@ get_update_cache_dates <- function(query_output,
     }
 
     #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as the max of field_name in the old dataset
-    if(is.null(query_output) & field_name %in% colnames(read_lines_raw(file.path(load_specs()$polis_data_folder,
+    if((is.null(query_output) | nrow(query_output) == 0) && field_name %in% colnames(read_lines_raw(file.path(load_specs()$polis_data_folder,
                                                                                  paste0(table_name, ".rds")),n_max=100))){
     old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
       mutate_all(.,as.character)
@@ -247,7 +249,7 @@ get_update_cache_dates <- function(query_output,
     latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
   #If field_name is blank or not in the dataset, save latest_date as NA
-  if(!is.null(query_output) & !(field_name %in% colnames(query_output))){
+  if(!is.null(query_output) && nrow(query_output) > 0 && !(field_name %in% colnames(query_output))){
     latest_date <- NA
   }
       #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
@@ -260,6 +262,7 @@ get_update_cache_dates <- function(query_output,
 get_polis_metadata <- function(query_output,
                                table_name,
                                categorical_max = 30){
+  if(nrow(query_output)>0){
   #summarise var names and classes
   var_name_class <- skimr::skim(query_output) %>%
     select(skim_type, skim_variable, character.n_unique) %>%
@@ -278,6 +281,10 @@ get_polis_metadata <- function(query_output,
   table_metadata <- var_name_class %>%
     select(-character.n_unique) %>%
     left_join(categorical_vars, by=c("var_name"))
+  }
+  if(nrow(query_output) == 0){
+    table_metadata <- NULL
+  }
   return(table_metadata)
 }
 
@@ -404,8 +411,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             table_name = NULL,
                             field_name = NULL,
                             id_vars = NULL,
-                            download_size = NULL){
-
+                            download_size = NULL,
+                            table_name_descriptive = NULL){
   
   #Get user input for which table to pull if not specified
   if(is.null(table_name) | is.null(field_name) | is.null(id_vars) | is.null(download_size)){
@@ -421,7 +428,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #If cache entry exists for a POLIS data table, check if the field_name is the same as requested
     #If different, then set re-pull indicator to TRUE
-        # field_name_change <- FALSE        
+        field_name_change <- NULL
         cache_dir <- file.path(folder, "cache_dir")
         cache_file <- file.path(cache_dir, "cache.rds")
         #if a row with the table_name exists within cache, then pull the values from that row
@@ -443,13 +450,18 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
-  
+  query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
-  
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
-  new_table_metadata <- get_polis_metadata(query_output = query_output,
+    if(is.null(table_name_descriptive)){
+      table_name_descriptive <- table_name
+    }
+    print(paste0("Downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+    new_table_metadata <- get_polis_metadata(query_output = query_output,
                                            table_name = table_name)
   }
 
@@ -491,11 +503,19 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     #Create an API URL and use it to query POLIS
     urls <- create_url_array(table_name = table_name,
                              field_name = x$field_name,
-                             min_date = x$latest_date)
+                             min_date = x$latest_date,
+                             download_size = download_size)
     
-    query_output <- pb_mc_api_pull(urls)  
-  }
-
+    query_start_time <- Sys.time()
+    query_output <- pb_mc_api_pull(urls)
+    query_stop_time <- Sys.time()
+    query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+    if(!is.null(query_output) & nrow(query_output)>0){
+      print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+    }
+    }
+  
+ 
   #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
@@ -598,7 +618,7 @@ create_url_array <- function(table_name,
                                 min_date = min_date,
                                 field_name = field_name)
 
-  urls <- paste0(my_url, "&$top=", download_size, "&$skip=",seq(0,table_size, by = download_size))
+  urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
   
   return(urls)
 
@@ -716,7 +736,7 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: Genders", table_name = "RefData('Genders')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Genotypes", table_name = "RefData('Genotypes')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Geolevels", table_name = "RefData('Geolevels')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed because API documentation states there is no data for this table
     c(table_name_descriptive = "Reference Data: IndependentMonitoringReasons", table_name = "RefData('IndependentMonitoringReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: IndependentMonitoringSources", table_name = "RefData('IndependentMonitoringSources')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: IndicatorCategories", table_name = "RefData('IndicatorCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -732,10 +752,10 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: PartialInclusionReason", table_name = "RefData('PartialInclusionReason')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: PopulationSources", table_name = "RefData('PopulationSources')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: PosNeg", table_name = "RefData('PosNeg')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: PreviousNumberOfDoses", table_name = "RefData('PreviousNumberOfDoses')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ProgrammeAreas", table_name = "RefData('ProgrammeAreas')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ReasonMissed", table_name = "RefData('ReasonMissed')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ReasonVaccineRefused", table_name = "RefData('ReasonVaccineRefused')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: PreviousNumberOfDoses", table_name = "RefData('PreviousNumberOfDoses')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ProgrammeAreas", table_name = "RefData('ProgrammeAreas')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ReasonMissed", table_name = "RefData('ReasonMissed')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ReasonVaccineRefused", table_name = "RefData('ReasonVaccineRefused')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Reports", table_name = "RefData('Reports')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ResultsElisa", table_name = "RefData('ResultsElisa')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ResultsPCR", table_name = "RefData('ResultsPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -750,9 +770,9 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: StoolCondition", table_name = "RefData('StoolCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: SurveillanceType", table_name = "RefData('SurveillanceType')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: UpdateType", table_name = "RefData('UpdateType')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Vdpv2Clusters", table_name = "RefData('Vdpv2Clusters')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Vdpv2Classifications", table_name = "RefData('Vdpv2Classifications')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: VdpvSources", table_name = "RefData('VdpvSources')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Vdpv2Clusters", table_name = "RefData('Vdpv2Clusters')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for Vdpv2Clusters reference data'
+    c(table_name_descriptive = "Reference Data: VdpvClassifications", table_name = "RefData('VdpvClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: VdpvSources", table_name = "RefData('VdpvSources')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for VdpvSources reference data'
     c(table_name_descriptive = "Reference Data: VirusTypes", table_name = "RefData('VirusTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: VirusWildType", table_name = "RefData('VirusWildType')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: YesNo", table_name = "RefData('YesNo')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -791,3 +811,133 @@ prompt_user_input <- function(){
   return(table_defaults)
   }
 
+get_polis_data <- function(folder = NULL,
+                           token = "",
+                           verbose=TRUE,
+                           dev = FALSE){
+  
+
+  #If folder location and token not provided, prompt user for input:
+  
+  if (is.null(folder) && interactive() && .Platform$OS.type == "windows"){
+    folder <- utils::choose.dir(default = getwd(), caption = "Select a folder where POLIS data will be saved:")
+  }
+  
+  #If folder structure and cache not created already, create them
+  init_polis_data_struc(folder=folder, token=token)
+    
+  #If token not provided, check for it in cache. 
+    if(load_specs()$polis$token == ""){
+      # If not in cache, if the token was provided as a function parameter, use that, else prompt for token entry
+        valid_token <- TRUE
+        if(token == ""){
+          token <- readline("Enter POLIS APIv2 Token: ")
+        }  
+        #Check if token is valid, stop if not
+        valid_token <- validate_token(token)
+        if(valid_token == FALSE){
+          stop("Invalid token.")
+        }
+    #save new token to specs yaml
+      specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
+      specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
+      specs$polis$token <- token
+      write_yaml(specs, specs_yaml)
+      Sys.setenv("token" = token)
+    }
+  
+  #Archive all data files in the POLIS data folder
+  archive_last_data()  
+  
+  #Get default POLIS table names, field names, and download sizes
+  if(dev == TRUE){
+  defaults <- load_defaults() %>%
+    filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+  }
+  if(dev == FALSE){
+    defaults <- load_defaults()
+  }
+  
+  #run get_polis_table iteratively over all tables
+  
+  for(i in 1:nrow(defaults)){
+    table_name <- defaults$table_name[i]
+    field_name <- defaults$field_name[i]
+    id_vars <- defaults$id_vars[i]
+    download_size <- as.numeric(defaults$download_size[i])
+    table_name_descriptive <- defaults$table_name_descriptive[i]
+    print(paste0("Downloading ", table_name_descriptive," Table [", i,"/", nrow(defaults),"]"))
+    get_polis_table(folder = load_specs()$polis_data_folder,
+                    token = load_specs()$polis$token,
+                    table_name = table_name,
+                    field_name = field_name,
+                    id_vars = id_vars,
+                    download_size = download_size,
+                    table_name_descriptive = table_name_descriptive)
+  }
+  cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
+}
+
+#Run a simple API call to check if the user-provided token is valid
+validate_token <- function(token = token){
+  my_url_test <-  paste0('https://extranet.who.int/polis/api/v2/',
+                         'Case?',
+                     "$inlinecount=allpages&$top=0",
+                     '&token=',token) %>%
+                  httr::modify_url()
+  result_test <- httr::GET(my_url_test)$status
+  valid_token <- TRUE
+  if(result_test != 200){
+    valid_token <- FALSE
+  }
+  return(valid_token)
+}
+
+#Function that moves the rds files in the polis_data folder to an archive folder
+archive_last_data <- function(archive_folder = NULL, #folder pathway where the datasets will be archived
+                              n_archive = 3 #Number of most-recent datasets to save in archive, per table
+                              ){
+  #If archive_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(archive_folder)){
+    archive_folder = paste0(load_specs()$polis_data_folder,"\\archive")
+    if(file.exists(archive_folder) == FALSE){
+      dir.create(archive_folder)
+      }
+  }
+  
+  #Get list of rds files to archive from polis_data_folder
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #for each item in current_files list, check if an archive subfolder exists, and if not then create it
+  for(i in current_files){  
+    if(file.exists(paste0(archive_folder, "\\", i)) == FALSE){
+        dir.create(paste0(archive_folder, "\\", i))
+    }
+    #for each item in current_files:
+      #delete the oldest file in it's subfolder if there are >= n_archive files in the subfolder
+      archive_list <- list.files(paste0(archive_folder, "\\", i)) %>%
+        stringr::str_subset(., pattern=".rds") %>%
+        stringr::str_remove(., pattern=".rds")
+        archive_list_timestamp <- c()
+        for(j in archive_list){
+          timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+          archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
+        }
+      oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
+        mutate(timestamp   = as.POSIXct(timestamp)) %>%
+        arrange(timestamp) %>%
+        slice(1))$file %>%
+        paste0(., ".rds")
+      if(length(archive_list) >= n_archive){
+        file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
+      }
+      #write the current file to the archive subfolder
+      current_file_timestamp <- file.info(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))$ctime[1]
+      current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+      write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
+      #remove the current file from the main folder
+      file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+  }
+}

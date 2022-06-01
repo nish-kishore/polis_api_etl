@@ -558,6 +558,11 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                .val = field_name,
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
+  #Get change summary comparing final file to latest archived file
+  change_summary <- compare_final_to_archive(table_name,
+                           idvars,
+                           categorical_max = 30)
+  #Save change_summary to cache
 }
 
 #' create a URL to collect the count where field_name is not missing
@@ -1101,3 +1106,81 @@ find_and_remove_deleted_obs <- function(full_idvars_output,
     anti_join(deleted_obs, by=idvars)
   return(new_complete_file)
 }
+
+compare_final_to_archive <- function(table_name,
+                                     idvars,
+                                     categorical_max = 30){
+  idvars <- as.vector(idvars)
+  #Load new_file
+  new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
+
+  #load latest file in archive subfolder
+  archive_subfolder <- paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)
+
+  #for each item in subfolder_list, get all file names then subset to most recent
+    subfolder_files <- list.files(paste0(archive_subfolder))
+    file_dates <- c()
+    for(j in subfolder_files){
+      file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
+      file_dates <- c(file_dates, file_date)
+    }
+    latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+                       mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+                       arrange(desc(create_date)) %>%
+                       slice(1))$name
+    change_summary <- NULL
+    if(length(latest_file) > 0){
+      #load latest_file
+      latest_file <- readRDS(paste0(archive_subfolder, "\\", latest_file))
+
+      #get metadata for latest file and new_file
+      new_file_metadata <- get_polis_metadata(query_output = new_file,
+                         table_name = table_name,
+                         categorical_max = categorical_max)
+      old_file_metadata <- get_polis_metadata(query_output = latest_file,
+                                              table_name = table_name,
+                                              categorical_max = categorical_max)
+
+      change_summary <- metadata_comparison(new_file_metadata, old_file_metadata)[2:5]
+
+      #count obs added to new_file and get set
+      in_new_not_old <- new_file %>%
+        anti_join(latest_file, by=as.vector(idvars))
+
+      #count obs removed from old_file and get set
+      in_old_not_new <- latest_file %>%
+        anti_join(new_file, by=as.vector(idvars))
+
+      #count obs modified in new file compared to old and get set
+        in_new_and_old_but_modified <- new_file %>%
+          inner_join(latest_file, by=as.vector(idvars)) %>%
+          #restrict to cols in new and old
+          select(idvars, paste0(colnames(new_file %>% select(-idvars)), ".x"), paste0(colnames(new_file %>% select(-idvars)), ".y")) %>%
+          #wide_to_long
+          pivot_longer(cols=-idvars) %>%
+          mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
+          mutate(name = str_sub(name, 1, -3)) %>%
+          #long_to_wide
+          pivot_wider(names_from=source, values_from=value) %>%
+          filter(new != old)
+      
+      #summary counts
+        n_added <- nrow(in_new_not_old)
+        n_edited <- nrow(in_new_and_old_but_modified %>%
+                      select(idvars) %>%
+                      unique())
+        n_deleted <- nrow(in_old_not_new)
+        obs_change <- c(n_added = n_added,
+                        n_edited = n_edited, 
+                        n_deleted = n_deleted)
+        
+      #add summary to change_summary along with datasets
+      change_summary <- append(change_summary, 
+                             list(obs_change = obs_change, 
+                                  obs_added = in_new_not_old,
+                                  obs_edited = in_new_and_old_but_modified,
+                                  obs_deleted = in_old_not_new))
+          
+      }
+    return(change_summary)
+  }

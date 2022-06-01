@@ -72,5 +72,3 @@ get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
 
 
 
-
-

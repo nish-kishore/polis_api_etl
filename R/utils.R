@@ -1574,3 +1574,134 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
   }
 }
 
+
+revert_from_archive <- function(last_good_date = Sys.Date()-1){
+  folder <- load_specs()$polis_data_folder
+  archive_folder <- paste0(load_specs()$polis_data_folder,"\\archive")
+  
+  #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
+    #get directory of subfolders
+      subfolder_list <- list.files(archive_folder)
+    #for each item in subfolder_list, get all file names then subset to most recent
+      for(i in subfolder_list){
+        subfolder_files <- list.files(paste0(archive_folder, "\\", i))
+        file_dates <- c()
+        for(j in subfolder_files){
+          file_date <- attr(readRDS(paste0(archive_folder, "\\", i, "\\", j)),which="updated")
+          file_dates <- c(file_dates, file_date)
+        }
+        file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+          filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
+          arrange(desc(create_date)) %>%
+          slice(1))$name
+        #load file to keep
+        if(length(file_to_keep) > 0){
+        file_to_keep <- readRDS(paste0(archive_folder, "\\", i, "\\", file_to_keep))
+        #write file to keep to data folder
+        write_rds(file_to_keep, paste0(folder,"\\",i,".rds"))
+        }
+        if(length(file_to_keep) == 0){
+          warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
+        }
+      }
+  #Update the cache to reflect the reverted files
+      update_cache_from_files()
+}
+
+update_cache_from_files <- function(){
+  #read in cache
+  cache <- readRDS(file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')) 
+
+  #update the created, updated, and latest dates in the cache
+    #get list of rds files  
+      current_files <- list.files(load_specs()$polis_data_folder) %>%
+        stringr::str_subset(., pattern=".rds") %>%
+        stringr::str_remove(., pattern=".rds")
+    #For each rds, read its attributes, assign attributes to cache
+      for(i in current_files){  
+        #read attributes  
+        attr_created <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "created") 
+        attr_date_field <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "date_field") 
+        attr_file_type <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "file_type") 
+        attr_latest_date <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "latest_date") 
+        attr_updated <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "updated") 
+        cache <- cache %>%
+          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin),
+                 date_field = ifelse(file_name == i, attr_date_field, date_field),
+                 file_type = ifelse(file_name == i, attr_file_type, file_type),
+                 latest_date = as.Date(ifelse(file_name == i, attr_latest_date, latest_date), format=("%Y-%m-%d"), origin=lubridate::origin),
+                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin))
+      }
+      #Write revised cache
+      write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
+}
+
+#add cache data as attributes to rds
+add_cache_attributes <- function(){
+  #Get list of rds 
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #For each rds, read it in, assign attributes from cache, and save it
+    for(i in current_files){  
+    #get cache entry
+      cache_entry <- read_cache(.file_name = i)
+    #read in file
+      file <- readRDS(paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    #Assign attributes  
+      attributes(file)$created <- cache_entry$created
+      attributes(file)$date_field <- cache_entry$date_field
+      attributes(file)$file_name <- cache_entry$file_name
+      attributes(file)$file_type <- cache_entry$file_type
+      attributes(file)$latest_date <- cache_entry$latest_date
+      attributes(file)$updated <- cache_entry$updated
+    #Write file
+      write_rds(file, paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    }
+}
+
+#for any table, pull just the idvars for a check for deletions in POLIS and a
+# a double-check for any additions in POLIS not captured by the date_field query
+
+create_url_array_idvars <- function(table_name = table_name,
+                                    id_vars = id_vars){
+  # construct general URL
+    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$select=", paste(id_vars, collapse=","),
+                   "&$inlinecount=allpages",
+                   '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+  # Get table size
+      my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
+                         paste0(table_name, "?"),
+                         "$inlinecount=allpages",
+                         '&token=',load_specs()$polis$token,
+                         "&$top=0") %>%
+          httr::modify_url()
+    
+     response <- httr::GET(my_url2)
+    
+     table_size <- response %>%
+                    httr::content(type='text',encoding = 'UTF-8') %>%
+                    jsonlite::fromJSON() %>%
+                    {.$odata.count} %>%
+                    as.integer()
+  # build URL array
+    urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
+    return(urls)
+}
+
+get_idvars_only <- function(table_name,
+                            id_vars){
+  urls <- create_url_array_idvars(table_name, id_vars)
+  query_start_time <- Sys.time()
+  query_output <- pb_mc_api_pull(urls)  
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+  print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
+  return(query_output)
+}
+

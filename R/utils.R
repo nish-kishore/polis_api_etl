@@ -161,15 +161,26 @@ make_url_general <- function(field_name,
 #Join the previously cached dataset for a table to the newly pulled dataset
 append_and_save <- function(query_output = query_output,
                             id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
-                            table_name = table_name){
-
+                            table_name = table_name,
+                            full_idvars_output = full_idvars_output){
+  
+  idvars <- as.vector(idvars)
+  
+  #remove records that are no longer in the POLIS table from query_output
+  query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                           new_complete_file = query_output,
+                                           idvars = idvars)
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
-      anti_join(query_output, by=id_vars)
-
+      anti_join(query_output, by=id_vars) 
+  #remove records that are no longer in the POLIS table from old_polis
+  old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                           new_complete_file = old_polis,
+                                           idvars = idvars)
+        
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
@@ -565,9 +576,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   
   #Combine the query output with the old dataset and save
+    #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
+  full_idvars_output <- get_idvars_only(table_name = table_name,
+                                        id_vars = id_vars)
+    
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
-                                      id_vars = id_vars)
+                                      id_vars = id_vars,
+                                      full_idvars_output = full_idvars_output)
 
   #Get the cache dates for the newly saved table
   update_cache_dates <- get_update_cache_dates(query_output = new_query_output,
@@ -1701,7 +1717,20 @@ get_idvars_only <- function(table_name,
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-  print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
+  # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
   return(query_output)
 }
 
+#function to remove the obs deleted from the POLIS table from the saved table
+find_and_remove_deleted_obs <- function(full_idvars_output,
+                                  new_complete_file,
+                                  idvars){
+  idvars <- as.vector(idvars)
+  new_complete_file_idvars <- new_complete_file %>%
+    select(idvars)
+  deleted_obs <- new_complete_file_idvars %>%
+    anti_join(full_idvars_output, by=idvars)
+  new_complete_file <- new_complete_file %>%
+    anti_join(deleted_obs, by=idvars)
+  return(new_complete_file)
+}

@@ -563,6 +563,10 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                            idvars,
                            categorical_max = 30)
   #Save change_summary to cache
+  save_change_summary(table_name = table_name, 
+                      change_summary = change_summary,
+                      change_log_folder = NULL,
+                      n_change_log = 30)
 }
 
 #' create a URL to collect the count where field_name is not missing
@@ -1183,4 +1187,46 @@ compare_final_to_archive <- function(table_name,
           
       }
     return(change_summary)
+}
+
+save_change_summary <- function(table_name, 
+                                change_summary,
+                                change_log_folder = NULL,
+                                n_change_log = 30){
+  #If change_log_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(change_log_folder)){
+    change_log_folder = paste0(load_specs()$polis_data_folder,"\\change_log")
+    if(file.exists(change_log_folder) == FALSE){
+      dir.create(change_log_folder)
+    }
   }
+  
+  #If change_log subfolder does not exist, then create it
+  change_log_subfolder = paste0(load_specs()$polis_data_folder,"\\change_log\\", table_name)
+  if(file.exists(change_log_subfolder) == FALSE){
+    dir.create(change_log_subfolder)
+  }
+  
+  #delete the oldest file in subfolder if there are >= n_change_log files in the subfolder
+  change_log_list <- list.files(change_log_subfolder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  change_log_list_timestamp <- c()
+  for(j in change_log_list){
+    timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+    change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
+  }
+  if(length(change_log_list) > 0){
+  oldest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
+                    mutate(timestamp   = as.POSIXct(timestamp)) %>%
+                    arrange(timestamp) %>%
+                    slice(1))$file %>%
+    paste0(., ".rds")
+  }
+  if(length(change_log_list) >= n_change_log){
+    file.remove(paste0(change_log_subfolder, "\\", oldest_file))
+  }
+  #write the current file to the archive subfolder
+  write_rds(change_summary, paste0(change_log_subfolder, "\\", table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds"))
+  
+}

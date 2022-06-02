@@ -901,6 +901,7 @@ get_polis_data <- function(folder = NULL,
                     table_name_descriptive = table_name_descriptive)
   }
   cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
+  print_latest_change_log_summary()
 }
 
 #Run a simple API call to check if the user-provided token is valid
@@ -1300,7 +1301,7 @@ print_latest_change_log_summary <- function(){
         }
       }
       #for each type of change, filter to where there are changes if needed
-      obs_change_combined %>%
+      obs_change_combined <- obs_change_combined %>%
         rowwise() %>%
         mutate(tot_change = sum(n_added, n_edited, n_deleted)) %>%
         ungroup() %>%

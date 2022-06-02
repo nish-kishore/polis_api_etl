@@ -1852,5 +1852,109 @@ save_change_summary <- function(table_name,
   }
   #write the current file to the archive subfolder
   write_rds(change_summary, paste0(change_log_subfolder, "\\", table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds"))
-  
+}
+
+#function which prints the latest change log into console
+print_latest_change_log_summary <- function(){
+  #load and combine latest change_log for all tables
+    #Check if change_log folder exists. If not, go to end.
+    change_log_folder <- paste0(load_specs()$polis_data_folder,"\\change_log")
+    if(file.exists(change_log_folder) == TRUE){
+      #Get list of subfolders
+      change_log_subfolder_list <- list.files(change_log_folder)
+      #Get list of latest file name within each change_log_subfolder
+      change_log_file_list <- c()
+      obs_change_combined <- data.frame()
+      class_changed_vars_combined <- data.frame()
+      new_response_combined <- data.frame()
+      lost_vars_combined <- data.frame()
+      new_vars_combined <- data.frame()
+      for(i in change_log_subfolder_list){
+        change_log_list <- c()
+        change_log_subfolder <- paste0(change_log_folder, "\\", i)
+        change_log_list <- list.files(change_log_subfolder) %>%
+          stringr::str_subset(., pattern=".rds") %>%
+          stringr::str_remove(., pattern=".rds")
+        change_log_list_timestamp <- c()  
+        for(j in change_log_list){
+          timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+          change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
+        }
+        if(length(change_log_list) > 0){
+          newest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
+                          mutate(timestamp   = as.POSIXct(timestamp)) %>%
+                          arrange(desc(timestamp)) %>%
+                          slice(1))$file %>%
+          paste0(., ".rds")
+          change_log <- readRDS(paste0(change_log_subfolder, "\\", newest_file))
+          new_response <- change_log$new_response %>%
+            mutate(table_name = i)
+          class_changed_vars <- change_log$class_changed_vars %>%
+            mutate(table_name = i)
+          if(length(change_log$lost_vars) > 0){
+          lost_vars <- c(i, paste(change_log$lost_vars, ","))
+          }
+          if(length(change_log$lost_vars) == 0){
+            lost_vars <- c()
+          }
+          if(length(change_log$lost_vars) > 0){
+            new_vars <- c(i, paste(change_log$new_vars, ","))
+          }
+          if(length(change_log$new_vars) == 0){
+            new_vars <- c()
+          }
+          obs_change <- as.data.frame(change_log$obs_change) 
+          obs_change$change <- rownames(obs_change)
+          obs_change <- obs_change %>%
+            pivot_wider(names_from = change, values_from=`change_log$obs_change`) %>%
+            mutate(table_name = i)
+          
+          obs_change_combined <- obs_change_combined %>%
+            bind_rows(obs_change)
+          class_changed_vars_combined <- class_changed_vars_combined %>%
+            bind_rows(class_changed_vars)
+          new_response_combined <- new_response_combined %>%
+            bind_rows(new_response)
+          lost_vars_combined <- lost_vars_combined %>%
+            rbind(lost_vars)
+          if(ncol(lost_vars_combined) == 2){colnames(lost_vars_combined) <- c("table_name", "lost_vars")}
+          new_vars_combined <- new_vars_combined %>%
+            rbind(new_vars)
+          if(ncol(new_vars_combined) == 2){colnames(new_vars_combined) <- c("table_name", "new_vars")}
+        }
+      }
+      #for each type of change, filter to where there are changes if needed
+      obs_change_combined %>%
+        rowwise() %>%
+        mutate(tot_change = sum(n_added, n_edited, n_deleted)) %>%
+        ungroup() %>%
+        filter(tot_change > 0) %>%
+        select(table_name, n_added, n_edited, n_deleted)
+      
+      #print summary of each type of change 
+      if(nrow(new_vars_combined) > 0){
+        print("New variables were found in the following tables:")
+        new_vars_combined
+      } else {print("No new variables were found in any table since last download.")}
+      
+      if(nrow(lost_vars_combined) > 0){
+        print("Variables were dropped from the following tables:")
+        lost_vars_combined
+      } else {print("No variables were dropped from any table since last download.")}
+      
+      if(nrow(new_response_combined) > 0){
+        print("New categorical responses were found in the following tables/variables:")
+        new_response_combined %>% select(table_name, var_name, in_new_not_old)
+      } else {print("No new categorical responses were found in any table since last download.")}
+      
+      if(nrow(class_changed_vars_combined) > 0){
+        print("Changes in variable classes were found in the following tables:")
+        class_changed_vars_combined %>% select(table_name, var_name, old_var_class, new_var_class)
+      } else {print("No changes in variable classes were found in any table since last download.")}
+      
+      if(nrow(obs_change_combined) > 0){
+        print("The following counts of observations were added/edited/deleted from each table since the last download:")
+        obs_change_combined
+      } else {print("No observation additions/edits/deletions were found in any table since last download.")}
+    }
 }

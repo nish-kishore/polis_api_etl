@@ -164,12 +164,12 @@ append_and_save <- function(query_output = query_output,
                             table_name = table_name,
                             full_idvars_output = full_idvars_output){
   
-  idvars <- as.vector(idvars)
+  id_vars <- as.vector(id_vars)
   
   #remove records that are no longer in the POLIS table from query_output
   query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = query_output,
-                                           idvars = idvars)
+                                           id_vars = id_vars)
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
@@ -179,7 +179,7 @@ append_and_save <- function(query_output = query_output,
   #remove records that are no longer in the POLIS table from old_polis
   old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = old_polis,
-                                           idvars = idvars)
+                                           id_vars = id_vars)
         
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
@@ -560,7 +560,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   )
   #Get change summary comparing final file to latest archived file
   change_summary <- compare_final_to_archive(table_name,
-                           idvars,
+                           id_vars,
                            categorical_max = 30)
   #Save change_summary to cache
   save_change_summary(table_name = table_name, 
@@ -1101,21 +1101,21 @@ get_idvars_only <- function(table_name,
 #function to remove the obs deleted from the POLIS table from the saved table
 find_and_remove_deleted_obs <- function(full_idvars_output,
                                   new_complete_file,
-                                  idvars){
-  idvars <- as.vector(idvars)
+                                  id_vars){
+  id_vars <- as.vector(id_vars)
   new_complete_file_idvars <- new_complete_file %>%
-    select(idvars)
+    select(id_vars)
   deleted_obs <- new_complete_file_idvars %>%
-    anti_join(full_idvars_output, by=idvars)
+    anti_join(full_idvars_output, by=id_vars)
   new_complete_file <- new_complete_file %>%
-    anti_join(deleted_obs, by=idvars)
+    anti_join(deleted_obs, by=id_vars)
   return(new_complete_file)
 }
 
 compare_final_to_archive <- function(table_name,
-                                     idvars,
+                                     id_vars,
                                      categorical_max = 30){
-  idvars <- as.vector(idvars)
+  id_vars <- as.vector(id_vars)
   #Load new_file
   new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
 
@@ -1150,19 +1150,19 @@ compare_final_to_archive <- function(table_name,
 
       #count obs added to new_file and get set
       in_new_not_old <- new_file %>%
-        anti_join(latest_file, by=as.vector(idvars))
+        anti_join(latest_file, by=as.vector(id_vars))
 
       #count obs removed from old_file and get set
       in_old_not_new <- latest_file %>%
-        anti_join(new_file, by=as.vector(idvars))
+        anti_join(new_file, by=as.vector(id_vars))
 
       #count obs modified in new file compared to old and get set
         in_new_and_old_but_modified <- new_file %>%
-          inner_join(latest_file, by=as.vector(idvars)) %>%
+          inner_join(latest_file, by=as.vector(id_vars)) %>%
           #restrict to cols in new and old
-          select(idvars, paste0(colnames(new_file %>% select(-idvars)), ".x"), paste0(colnames(new_file %>% select(-idvars)), ".y")) %>%
+          select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
           #wide_to_long
-          pivot_longer(cols=-idvars) %>%
+          pivot_longer(cols=-id_vars) %>%
           mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
           mutate(name = str_sub(name, 1, -3)) %>%
           #long_to_wide
@@ -1172,7 +1172,7 @@ compare_final_to_archive <- function(table_name,
       #summary counts
         n_added <- nrow(in_new_not_old)
         n_edited <- nrow(in_new_and_old_but_modified %>%
-                      select(idvars) %>%
+                      select(id_vars) %>%
                       unique())
         n_deleted <- nrow(in_old_not_new)
         obs_change <- c(n_added = n_added,

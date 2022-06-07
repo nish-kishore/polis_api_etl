@@ -941,3 +941,107 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
       file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
 }
+
+
+#data cleaning: standardize variable names by the following rules: [From: https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
+  # Parse letter cases and separators to a consistent format (e.g. snake_case)
+  # Remove leading/trailing/repeating spaces
+  # Replace special characters with alphanumeric (e.g. o to oe)
+  # Append numbers to duplicated names
+  # Convert '%' to 'percent' and '#' to number
+
+  cleaning_var_names_initial <- function(input_dataframe = NULL,
+                                         case="snake"){
+    if(!is.null(input_dataframe)){
+    input_dataframe <- input_dataframe %>%
+      janitor::clean_names(case=case)
+    }
+    return(input_dataframe)
+  }
+  
+#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https://r4ds.had.co.nz/data-import.html]
+  # 1. logical: contains only "F", "T", "FALSE", or "TRUE"
+  # 2. integer: contains only numeric characters (and -).
+  # 3. double: contains only valid doubles (including numbers like 4.5e-5)
+  # 4. number: contains valid doubles with the grouping mark inside.
+  # 5. time: matches the default time_format
+  # 6. date: matches the default date_format
+  # 7. date-time: any ISO8601 date
+  # 8. If none of the above apply, then keep col as character.
+  cleaning_var_class_initial <- function(input_dataframe = NULL){
+    if(!is.null(input_dataframe)){
+      #Get 3 sets of 1000 rows to use to guess classes and compare
+        #if <1000 rows, the full dataset will be used to guess classes (no need to compare)
+      if(nrow(input_dataframe > 1000)){
+      set1 <- input_dataframe %>%
+        #Sample 1000 rows at random 
+        sample_n(size=1000, replace=FALSE)
+      class_set1 <- set1 %>%
+        mutate_all( ~ guess_parser(.)) %>%
+        unique() 
+        
+      set2 <- input_dataframe %>%
+        head(1000)
+      class_set2 <- set2 %>%
+        mutate_all( ~ guess_parser(.)) %>%
+        unique() 
+      
+      set3 <- input_dataframe %>%
+        tail(1000)
+      class_set3 <- set3 %>%
+        mutate_all( ~ guess_parser(.)) %>%
+        unique() 
+      
+      class_set <- class_set1 %>%
+        bind_rows(class_set2) %>%
+        bind_rows(class_set3) %>%
+        unique()
+      
+      class_set_keep_character <- class_set %>%
+        summarise_all(n_distinct) %>%
+        t() %>%
+        as.data.frame() %>%
+        rename(number_of_class_guesses = V1) %>%
+        filter(number_of_class_guesses > 1)
+      class_set_keep_character$var_name <- row.names(class_set_input_needed)
+      class_set <- class_set %>%
+        head(1) %>%
+        t() %>%
+        as.data.frame() %>%
+        rename(class = V1) 
+      
+      class_set$var_name <- row.names(class_set)
+      class_set <- class_set %>% 
+        mutate(class = ifelse(var_name %in% class_set_keep_character$var_name, "character", class))
+      rownames(class_set) = NULL
+      class_set <- class_set %>%
+        pivot_wider(names_from = var_name, values_from=class)
+      }
+      if(nrow(input_dataframe <= 1000)){
+        class_set <- input_dataframe %>%
+          mutate_all( ~ guess_parser(.)) %>%
+          unique() 
+      }
+      input_dataframe <- input_dataframe %>%
+        mutate_at(colnames(class_set), parse_guess)
+    }
+    return(input_dataframe)
+  }
+
+#data cleaning: remove duplicates either across all vars, or a set of vars if specified by the user
+cleaning_dedup <- function(input_dataframe = NULL,
+                          dedup_vars = NULL #a vector of var names to deduplicate on
+                          ){
+  if(!is.null(input_dataframe)){
+      if(is.null(dedup_vars)){
+        input_dataframe <- input_dataframe %>%
+          distinct(across(everything()))
+      }
+    if(!is.null(dedup_vars)){
+      input_dataframe <- input_dataframe %>%
+        distinct(across(as.vector(dedup_vars)))
+    }
+  }
+  return(input_dataframe)
+}
+

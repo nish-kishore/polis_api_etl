@@ -1045,3 +1045,11 @@ cleaning_dedup <- function(input_dataframe = NULL,
   return(input_dataframe)
 }
 
+#data cleaning: remove empty rows and columns
+cleaning_remove_empty <- function(input_dataframe = NULL){
+  if(!is.null(input_dataframe)){
+    input_dataframe <- input_dataframe %>%
+      janitor::remove_empty(which=c("rows"))
+  }
+  return(input_dataframe)
+}

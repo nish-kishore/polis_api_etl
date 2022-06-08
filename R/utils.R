@@ -1053,3 +1053,36 @@ cleaning_remove_empty <- function(input_dataframe = NULL){
   }
   return(input_dataframe)
 }
+
+#data cleaning: rename from file
+cleaning_var_names_from_file <- function(table_name = NULL,
+                                         input_dataframe = NULL,
+                                         var_name_file = NULL,
+                                         desired_naming_convention = NULL){
+  if(is.null(var_name_file)){
+    #Check if file exists. if not, then create the folder and download the file
+    if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv")) == FALSE){
+      if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles")) == FALSE){
+        dir.create(paste0(load_specs()$polis_data_folder, "/datafiles"))
+      }
+      var_name_synonyms <- read.csv("https://raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.csv?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
+      rio::export(var_name_synonyms, paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv"))
+    }
+    var_name_synonyms <- rio::import(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv"))
+  }
+  if(!is.null(var_name_file)){
+    var_name_synonyms <- rio::import(var_name_file)
+  }
+
+  
+  table_var_name_synonyms <- var_name_synonyms %>%
+    filter(table_name == table_name)
+  if(is.null(desired_naming_convention)){
+    desired_naming_convention <- paste0("Desired Naming Convention: ", colnames(table_var_name_synonyms)[utils::menu(indicator_list, title="Select an Indicator to download:")])
+    
+  }
+    
+}
+
+
+

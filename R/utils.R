@@ -617,9 +617,10 @@ create_url_array <- function(table_name,
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
                                 field_name = field_name)
-
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
-  
+  options(scipen = prior_scipen)
   return(urls)
 
 }

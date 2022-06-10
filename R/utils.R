@@ -1046,7 +1046,7 @@ cleaning_dedup <- function(input_dataframe = NULL,
 }
 
 #data cleaning: remove empty rows and columns
-cleaning_remove_empty <- function(input_dataframe = NULL){
+cleaning_remove_empty_rows <- function(input_dataframe = NULL){
   if(!is.null(input_dataframe)){
     input_dataframe <- input_dataframe %>%
       janitor::remove_empty(which=c("rows"))
@@ -1102,4 +1102,5 @@ cleaning_blank_to_na <- function(input_dataframe){
     mutate_all(list(~str_trim(.))) #remove all leading/trailing whitespaces as well as replace all " " with ""
     mutate_all(list(~na_if(.,""))) #replace "" with NA
 }
+
 

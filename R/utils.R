@@ -454,6 +454,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+  
+  
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
@@ -510,12 +512,12 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     query_output <- pb_mc_api_pull(urls)
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+    
     if(!is.null(query_output) & nrow(query_output)>0){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
     }
   
- 
   #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
@@ -972,7 +974,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
     if(!is.null(input_dataframe)){
       #Get 3 sets of 1000 rows to use to guess classes and compare
         #if <1000 rows, the full dataset will be used to guess classes (no need to compare)
-      if(nrow(input_dataframe > 1000)){
+      if(nrow(input_dataframe) > 1000){
       set1 <- input_dataframe %>%
         #Sample 1000 rows at random 
         sample_n(size=1000, replace=FALSE)
@@ -1099,8 +1101,16 @@ cleaning_var_names_from_file <- function(table_name = NULL,
 #data cleaning: convert all empty strings to NA
 cleaning_blank_to_na <- function(input_dataframe){
   input_dataframe <- input_dataframe %>%
-    mutate_all(list(~str_trim(.))) #remove all leading/trailing whitespaces as well as replace all " " with ""
+    mutate_all(list(~str_trim(.))) %>% #remove all leading/trailing whitespaces as well as replace all " " with ""
     mutate_all(list(~na_if(.,""))) #replace "" with NA
 }
 
+clean_polis_data <- function(input_dataframe = NULL){
+  input_dataframe <- cleaning_var_names_initial(input_dataframe)
+  input_dataframe <- cleaning_var_class_initial(input_dataframe)
+  input_dataframe <- cleaning_dedup(input_dataframe)
+  input_dataframe <- cleaning_remove_empty_rows(input_dataframe)
+  input_dataframe <- cleaning_blank_to_na(input_dataframe)
+  return(input_dataframe)
+}
 

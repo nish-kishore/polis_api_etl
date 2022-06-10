@@ -956,7 +956,9 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
                                          case="snake"){
     if(!is.null(input_dataframe)){
     input_dataframe <- input_dataframe %>%
-      janitor::clean_names(case=case)
+      janitor::clean_names(case=case) %>%
+      rename_all(stringi::stri_trans_general,
+                 id = "Latin-ASCII")
     }
     return(input_dataframe)
   }

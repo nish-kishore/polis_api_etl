@@ -1121,6 +1121,7 @@ clean_polis_data <- function(input_dataframe = NULL){
   input_dataframe <- cleaning_dedup(input_dataframe)
   input_dataframe <- cleaning_remove_empty_rows(input_dataframe)
   input_dataframe <- cleaning_blank_to_na(input_dataframe)
+  input_dataframe <- cleaning_replace_special(input_dataframe)
   return(input_dataframe)
 }
 

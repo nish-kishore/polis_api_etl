@@ -1096,5 +1096,10 @@ cleaning_var_names_from_file <- function(table_name = NULL,
   return(input_dataframe)
 }
 
-
+#data cleaning: convert all empty strings to NA
+cleaning_blank_to_na <- function(input_dataframe){
+  input_dataframe <- input_dataframe %>%
+    mutate_all(list(~str_trim(.))) #remove all leading/trailing whitespaces as well as replace all " " with ""
+    mutate_all(list(~na_if(.,""))) #replace "" with NA
+}
 

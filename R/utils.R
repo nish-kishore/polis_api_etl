@@ -1007,7 +1007,8 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         as.data.frame() %>%
         rename(number_of_class_guesses = V1) %>%
         filter(number_of_class_guesses > 1)
-      class_set_keep_character$var_name <- row.names(class_set_input_needed)
+      
+      class_set_keep_character$var_name <- row.names(class_set_keep_character)
       class_set <- class_set %>%
         head(1) %>%
         t() %>%

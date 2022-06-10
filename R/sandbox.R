@@ -69,8 +69,8 @@ get_polis_data()
 get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
                dev = TRUE)
 
-Lqas_clean <- cleaning_var_names_initial(input_dataframe = Lqas)
 
+test <- clean_polis_data(EnvSample)
 
 
 

@@ -1028,7 +1028,21 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
           unique() 
       }
       input_dataframe <- input_dataframe %>%
-        mutate_at(colnames(class_set), parse_guess)
+        mutate_at(colnames(class_set), parse_guess) 
+      
+      #Convert POSIXct to date when no time info is available
+        posixct_dates <- input_dataframe %>%
+          select_if(is.POSIXct) %>%
+          mutate_all(., ~ifelse((strftime(as.POSIXlt(.), format="%H:%M:%S"))=="00:00:00", 0,1)) %>%
+          summarise_all(max, na.rm=TRUE) %>%
+          t() %>%
+          as.data.frame() %>%
+          rename(date_and_time = V1) %>%
+          filter(date_and_time == 0) %>%
+          t() %>%
+          colnames()
+        input_dataframe <- input_dataframe %>%
+          mutate_at(posixct_dates, as.Date)
     }
     return(input_dataframe)
   }
@@ -1121,10 +1135,11 @@ cleaning_replace_special <- function(input_dataframe){
 clean_polis_data <- function(input_dataframe = NULL){
   input_dataframe <- cleaning_var_names_initial(input_dataframe)
   input_dataframe <- cleaning_var_class_initial(input_dataframe)
-  input_dataframe <- cleaning_dedup(input_dataframe)
   input_dataframe <- cleaning_remove_empty_rows(input_dataframe)
   input_dataframe <- cleaning_blank_to_na(input_dataframe)
   input_dataframe <- cleaning_replace_special(input_dataframe)
+  input_dataframe <- cleaning_dedup(input_dataframe)
+  input_dataframe <- cleaning_var_class_initial(input_dataframe) #running cleaning_var_class_initial a second time converts character to logical 
   return(input_dataframe)
 }
 

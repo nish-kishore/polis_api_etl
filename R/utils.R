@@ -1105,6 +1105,16 @@ cleaning_blank_to_na <- function(input_dataframe){
     mutate_all(list(~na_if(.,""))) #replace "" with NA
 }
 
+#data cleaning: replace all special characters with alphanumeric
+cleaning_replace_special <- function(input_dataframe){
+  #for each character variable, replace special characters
+  input_dataframe <- input_dataframe %>%
+    mutate_if(is.character, 
+              stringi::stri_trans_general,
+              id = "Latin-ASCII") 
+  return(input_dataframe)
+}
+
 clean_polis_data <- function(input_dataframe = NULL){
   input_dataframe <- cleaning_var_names_initial(input_dataframe)
   input_dataframe <- cleaning_var_class_initial(input_dataframe)

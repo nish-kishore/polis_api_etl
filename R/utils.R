@@ -1061,27 +1061,39 @@ cleaning_var_names_from_file <- function(table_name = NULL,
                                          desired_naming_convention = NULL){
   if(is.null(var_name_file)){
     #Check if file exists. if not, then create the folder and download the file
-    if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv")) == FALSE){
+    if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds")) == FALSE){
       if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles")) == FALSE){
         dir.create(paste0(load_specs()$polis_data_folder, "/datafiles"))
       }
-      var_name_synonyms <- read.csv("https://raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.csv?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
-      rio::export(var_name_synonyms, paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv"))
+      var_name_synonyms <- read.csv("https://raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.rds?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
+      write_rds(var_name_synonyms, paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
     }
-    var_name_synonyms <- rio::import(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.csv"))
+    var_name_synonyms <- readRDS(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
   }
   if(!is.null(var_name_file)){
-    var_name_synonyms <- rio::import(var_name_file)
+    var_name_synonyms <- readRDS(var_name_file)
   }
 
   
   table_var_name_synonyms <- var_name_synonyms %>%
-    filter(table_name == table_name)
+    filter(table_name == table_name) %>%
+    janitor::remove_empty(which=c("rows", "cols")) %>%
+    janitor::clean_names() %>%
+    select(-c("table_name"))
+  
   if(is.null(desired_naming_convention)){
-    desired_naming_convention <- paste0("Desired Naming Convention: ", colnames(table_var_name_synonyms)[utils::menu(indicator_list, title="Select an Indicator to download:")])
-    
+    desired_naming_convention <- colnames(table_var_name_synonyms)[utils::menu(colnames(table_var_name_synonyms), title="Select a Variable Naming Convention:")]
   }
-    
+  original_to_desired <- var_name_synonyms %>%
+    select(original_var_name, {{desired_naming_convention}} )
+  for(i in 1:ncol(input_dataframe)){
+    original_name <- colnames(input_dataframe)[i]
+    new_name <- (original_to_desired %>%
+      filter(original_var_name == {{original_name}}))[1,2]
+    input_dataframe <- input_dataframe %>%
+      rename({{new_name}} := {{original_name}})
+  }
+  return(input_dataframe)
 }
 
 

@@ -21,7 +21,7 @@ init_polis_data_struc <- function(folder, token){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT",
-      "latest_date"=as_date("1900-01-01"),
+      "latest_date"=as_date("2021-01-01"),
       "date_field" = "N/A"
     ) %>%
       write_rds(cache_file)
@@ -85,10 +85,10 @@ init_polis_data_table <- function(table_name = table_name,
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
-        "updated"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
+        "updated"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
         "file_type"="rds", #currently, hard-coded as RDS. Could revise to allow user to specify output file type (e.g. rds, csv, other)
         "file_name"= table_name,
-        "latest_date"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
+        "latest_date"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
@@ -182,18 +182,18 @@ append_and_save <- function(query_output = query_output,
     table_count2 <- as.numeric(result_content2$odata.count)
 
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
-    if(table_count2 == nrow(old_polis) + nrow(query_output)){
+    # if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
-    }
+    # }
 
     #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
       #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
       if(table_count2 != nrow(old_polis) + nrow(query_output)){
-      stop("Table is incomplete: check id_vars and field_name")
+      warning("Table is incomplete: check id_vars and field_name")
   }
 }
   if(!is.null(query_output) & nrow(query_output) > 0 & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
@@ -209,14 +209,14 @@ append_and_save <- function(query_output = query_output,
     table_count2 <- as.numeric(result_content2$odata.count)
     
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
-    if(table_count2 == nrow(query_output)){
+    # if(table_count2 == nrow(query_output)){
       new_query_output <- query_output 
       #save to file
       write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       return(new_query_output)
-    }
+    # }
     if(table_count2 != nrow(query_output)){
-      stop("Table is incomplete: check id_vars and field_name")
+      warning("Table is incomplete: check id_vars and field_name")
   }
 }
 }
@@ -549,7 +549,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
 #' create a URL to collect the count where field_name is not missing
 #' @param
 get_table_count <- function(table_name,
-                           min_date = as_date("1900-01-01"),
+                           min_date = as_date("2021-01-01"),
                            field_name){
 
   filter_url_conv <- make_url_general(
@@ -1113,6 +1113,38 @@ cleaning_var_names_from_file <- function(table_name = NULL,
       rename({{new_name}} := {{original_name}})
   }
   return(input_dataframe)
+}
+
+cleaning_var_class_from_metadata <- function(){
+  url <- 'https://extranet.who.int/polis/api/v2/$metadata'
+  
+  nodes <- read_html(url, xpath = '//h3 | //*[contains(concat( " ", @class, " 
+" ), concat( " ", "entry-title", " " ))]')
+  
+  page <- htmlTreeParse(nodes)$children[["html"]][["body"]][["edmx"]][["dataservices"]][["schema"]] %>%
+    xmlToList(., simplify=TRUE, addAttributes = TRUE)
+  
+  metadata <- data.frame()
+  for(i in 1:(length(page)-1)){
+    table <- page[[i]][[".attrs"]][[1]]
+    for(j in 2:(length(page[[i]])-1)){
+      polis_name <- page[[i]][[j]][["name"]]
+      polis_type <- page[[i]][[j]][["type"]]
+      row <- c(table, polis_name, polis_type)
+      metadata <- rbind(metadata, row) %>%
+        rename(table = 1, polis_name = 2, polis_type = 3)
+      print(paste0(i, ", ", j))
+    }
+  }  
+  metadata <- metadata %>%
+    mutate(table = str_replace_all(table, "ApiV2", ""),
+           polis_type = str_replace_all(polis_type, "Edm.", ""),
+           class = case_when(polis_type %in% c("Boolean") ~ "logical",
+                             polis_type %in% c("DateTime") ~ "POSIXct",
+                             polis_type %in% c("Decimal", "Double", "Int16", "Int32", "Int64") ~ "numeric",
+                             polis_type %in% c("Guid", "String") ~ "character",
+                             TRUE ~ NA_character_))
+  return(metadata)
 }
 
 #data cleaning: convert all empty strings to NA

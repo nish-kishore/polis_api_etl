@@ -10,6 +10,9 @@
 #' @import curl
 #' @import utils
 #' @import skimr
+#' @import rvest
+#' @import XML
+#' @import stringi
 NULL
 
-pacman::p_load(skimr, yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, stringi)
+pacman::p_load(skimr, yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, stringi, XML, rvest)

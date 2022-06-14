@@ -185,6 +185,7 @@ append_and_save <- function(query_output = query_output,
     if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
+    
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
@@ -875,6 +876,10 @@ get_polis_data <- function(folder = NULL,
                     download_size = download_size,
                     table_name_descriptive = table_name_descriptive)
   }
+  
+  #add cache data as attributes to rds
+  add_cache_attributes() 
+  
   cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
 }
 
@@ -922,7 +927,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         stringr::str_remove(., pattern=".rds")
         archive_list_timestamp <- c()
         for(j in archive_list){
-          timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+          timestamp <- as.POSIXct(attr(readRDS(paste0(archive_folder, "\\", i, "\\", j,".rds")), which="updated"))
           archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
         }
       oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
@@ -934,10 +939,98 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
       }
       #write the current file to the archive subfolder
-      current_file_timestamp <- file.info(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))$ctime[1]
+      current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
       current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
       write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
       #remove the current file from the main folder
       file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
+}
+
+
+revert_from_archive <- function(last_good_date = Sys.Date()-1){
+  folder <- load_specs()$polis_data_folder
+  archive_folder <- paste0(load_specs()$polis_data_folder,"\\archive")
+  
+  #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
+    #get directory of subfolders
+      subfolder_list <- list.files(archive_folder)
+    #for each item in subfolder_list, get all file names then subset to most recent
+      for(i in subfolder_list){
+        subfolder_files <- list.files(paste0(archive_folder, "\\", i))
+        file_dates <- c()
+        for(j in subfolder_files){
+          file_date <- attr(readRDS(paste0(archive_folder, "\\", i, "\\", j)),which="updated")
+          file_dates <- c(file_dates, file_date)
+        }
+        file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+          filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
+          arrange(desc(create_date)) %>%
+          slice(1))$name
+        #load file to keep
+        if(length(file_to_keep) > 0){
+        file_to_keep <- readRDS(paste0(archive_folder, "\\", i, "\\", file_to_keep))
+        #write file to keep to data folder
+        write_rds(file_to_keep, paste0(folder,"\\",i,".rds"))
+        }
+        if(length(file_to_keep) == 0){
+          warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
+        }
+      }
+  #Update the cache to reflect the reverted files
+      update_cache_from_files()
+}
+
+update_cache_from_files <- function(){
+  #read in cache
+  cache <- readRDS(file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')) 
+
+  #update the created, updated, and latest dates in the cache
+    #get list of rds files  
+      current_files <- list.files(load_specs()$polis_data_folder) %>%
+        stringr::str_subset(., pattern=".rds") %>%
+        stringr::str_remove(., pattern=".rds")
+    #For each rds, read its attributes, assign attributes to cache
+      for(i in current_files){  
+        #read attributes  
+        attr_created <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "created") 
+        attr_date_field <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "date_field") 
+        attr_file_type <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "file_type") 
+        attr_latest_date <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "latest_date") 
+        attr_updated <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "updated") 
+        cache <- cache %>%
+          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin),
+                 date_field = ifelse(file_name == i, attr_date_field, date_field),
+                 file_type = ifelse(file_name == i, attr_file_type, file_type),
+                 latest_date = as.Date(ifelse(file_name == i, attr_latest_date, latest_date), format=("%Y-%m-%d"), origin=lubridate::origin),
+                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin))
+      }
+      #Write revised cache
+      write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
+}
+
+#add cache data as attributes to rds
+add_cache_attributes <- function(){
+  #Get list of rds 
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #For each rds, read it in, assign attributes from cache, and save it
+    for(i in current_files){  
+    #get cache entry
+      cache_entry <- read_cache(.file_name = i)
+    #read in file
+      file <- readRDS(paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    #Assign attributes  
+      attributes(file)$created <- cache_entry$created
+      attributes(file)$date_field <- cache_entry$date_field
+      attributes(file)$file_name <- cache_entry$file_name
+      attributes(file)$file_type <- cache_entry$file_type
+      attributes(file)$latest_date <- cache_entry$latest_date
+      attributes(file)$updated <- cache_entry$updated
+    #Write file
+      write_rds(file, paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    }
 }

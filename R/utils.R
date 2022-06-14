@@ -450,6 +450,9 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
           field_name_change <- field_name != old_field_name
         }
   
+  #Archive all data files in the POLIS data folder
+  archive_last_data(table_name)
+  
   #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
   init_polis_data_table(table_name, field_name)
 
@@ -559,6 +562,9 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                .val = field_name,
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
+  
+  #add cache data as attributes to rds
+  add_cache_attributes(table_name) 
   
   #Get change summary comparing final file to latest archived file
   change_summary <- compare_final_to_archive(table_name,
@@ -874,10 +880,7 @@ get_polis_data <- function(folder = NULL,
       Sys.setenv("token" = token)
     }
   
-  #Archive all data files in the POLIS data folder
-  archive_last_data()  
-  
-  #Get default POLIS table names, field names, and download sizes
+   #Get default POLIS table names, field names, and download sizes
   if(dev == TRUE){
   defaults <- load_defaults() %>%
     filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
@@ -904,9 +907,6 @@ get_polis_data <- function(folder = NULL,
                     table_name_descriptive = table_name_descriptive)
   }
   
-  #add cache data as attributes to rds
-  add_cache_attributes() 
-  
   cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
   print_latest_change_log_summary()
 }
@@ -927,7 +927,8 @@ validate_token <- function(token = token){
 }
 
 #Function that moves the rds files in the polis_data folder to an archive folder
-archive_last_data <- function(archive_folder = NULL, #folder pathway where the datasets will be archived
+archive_last_data <- function(table_name,
+                              archive_folder = NULL, #folder pathway where the datasets will be archived
                               n_archive = 3 #Number of most-recent datasets to save in archive, per table
                               ){
   #If archive_folder was not specified, then check if the default exists, if not then create it
@@ -939,12 +940,15 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
   }
   
   #Get list of rds files to archive from polis_data_folder
-  current_files <- list.files(load_specs()$polis_data_folder) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
+  # current_files <- list.files(load_specs()$polis_data_folder) %>%
+  #   stringr::str_subset(., pattern=".rds") %>%
+  #   stringr::str_remove(., pattern=".rds")
+  
+  current_files <- table_name #Revised to just the current file (i.e. table name) so that the archive function can be placed in get_polis_table() instead of get_polis_data()
   
   #for each item in current_files list, check if an archive subfolder exists, and if not then create it
-  for(i in current_files){  
+  # for(i in current_files){  
+  i <- table_name
     if(file.exists(paste0(archive_folder, "\\", i)) == FALSE){
         dir.create(paste0(archive_folder, "\\", i))
     }
@@ -970,13 +974,16 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
       if(length(archive_list) >= n_archive){
         file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
       }
+      
       #write the current file to the archive subfolder
-      current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
-      current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
-      write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
-      #remove the current file from the main folder
-      file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
-  }
+      if(file.exists(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))){
+        current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
+        current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+        write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
+        #remove the current file from the main folder
+        file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+      }
+  # }
 }
 
 revert_from_archive <- function(last_good_date = Sys.Date()-1){
@@ -1042,11 +1049,12 @@ update_cache_from_files <- function(){
 }
 
 #add cache data as attributes to rds
-add_cache_attributes <- function(){
+add_cache_attributes <- function(table_name){
   #Get list of rds 
-  current_files <- list.files(load_specs()$polis_data_folder) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
+  # current_files <- list.files(load_specs()$polis_data_folder) %>%
+  #   stringr::str_subset(., pattern=".rds") %>%
+  #   stringr::str_remove(., pattern=".rds") 
+  current_files <- table_name
   
   #For each rds, read it in, assign attributes from cache, and save it
     for(i in current_files){  
@@ -1129,7 +1137,8 @@ compare_final_to_archive <- function(table_name,
   id_vars <- as.vector(id_vars)
   
   #if archive exists, then compare final to archive. If not, go to end;
-  if(file.exists(paste0(load_specs()$polis_data_folder,"\\archive\\", table_name))){
+  if(file.exists(paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)) &
+     length(list.files(paste0(paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)))) > 0){
     #Load new_file
     new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
 

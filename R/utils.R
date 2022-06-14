@@ -161,14 +161,25 @@ make_url_general <- function(field_name,
 #Join the previously cached dataset for a table to the newly pulled dataset
 append_and_save <- function(query_output = query_output,
                             id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
-                            table_name = table_name){
+                            table_name = table_name,
+                            full_idvars_output = full_idvars_output){
 
+  id_vars <- as.vector(id_vars)
+
+  #remove records that are no longer in the POLIS table from query_output
+  query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                           new_complete_file = query_output,
+                                           id_vars = id_vars)
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
       anti_join(query_output, by=id_vars)
+  #remove records that are no longer in the POLIS table from old_polis
+  old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                           new_complete_file = old_polis,
+                                           id_vars = id_vars)
 
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
@@ -185,6 +196,7 @@ append_and_save <- function(query_output = query_output,
     # if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
+
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
@@ -207,10 +219,10 @@ append_and_save <- function(query_output = query_output,
     result2 <- httr::GET(my_url2)
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
-    
+
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
     # if(table_count2 == nrow(query_output)){
-      new_query_output <- query_output 
+      new_query_output <- query_output
       #save to file
       write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       return(new_query_output)
@@ -317,7 +329,7 @@ metadata_comparison <- function(new_table_metadata,
     class_changed_vars <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
              !(var_name %in% new_vars) &
-              (var_class.x != var_class.y & 
+              (var_class.x != var_class.y &
               !is.null(var_class.x) & !is.null(var_class.y))) %>%
       select(-c(categorical_response_set.x, categorical_response_set.y)) %>%
       rename(old_var_class = var_class.x,
@@ -413,7 +425,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             id_vars = NULL,
                             download_size = NULL,
                             table_name_descriptive = NULL){
-  
+
   #Get user input for which table to pull if not specified
   if(is.null(table_name) | is.null(field_name) | is.null(id_vars) | is.null(download_size)){
     table_defaults <- prompt_user_input()
@@ -422,10 +434,10 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     id_vars <- table_defaults$id_vars
     download_size <- as.numeric(table_defaults$download_size)
   }
-  
+
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
-  
+
   #If cache entry exists for a POLIS data table, check if the field_name is the same as requested
     #If different, then set re-pull indicator to TRUE
         field_name_change <- NULL
@@ -437,25 +449,25 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                            filter(file_name == table_name))$date_field
           field_name_change <- field_name != old_field_name
         }
-  
+
   #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
   init_polis_data_table(table_name, field_name)
 
   #Read the cache entry for the requested POLIS data table
   x <- NULL
   x <- read_table_in_cache_dir(table_name)
-  
+
   #Create an API URL and use it to query POLIS
   urls <- create_url_array(table_name = table_name,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
   query_start_time <- Sys.time()
-  query_output <- pb_mc_api_pull(urls)  
+  query_output <- pb_mc_api_pull(urls)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-  
-  
+
+
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
@@ -473,7 +485,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     old_table_metadata <- get_polis_metadata(query_output = readRDS( file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds"))),
                                              table_name = table_name)
   }
-  
+
   re_pull_polis_indicator <- FALSE
 
   #If both old and new metadata summaries exist, then compare them. If there are differences, then set the re_pull_polis_indicator to trigger re-pull of entire table
@@ -484,7 +496,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
 
   #If field_name has changed then indicate re-pull
-  
+
   if(!is.null(field_name_change)){
     if(field_name_change == TRUE){
       re_pull_polis_indicator <- TRUE
@@ -495,33 +507,38 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   polis_re_pull(table_name = table_name,
                 field_name = field_name,
                 re_pull_polis_indicator = re_pull_polis_indicator)
-  
+
   if(re_pull_polis_indicator == TRUE){
-    
+
     #Read the cache entry for the requested POLIS data table
     x <- NULL
     x <- read_table_in_cache_dir(table_name)
-    
+
     #Create an API URL and use it to query POLIS
     urls <- create_url_array(table_name = table_name,
                              field_name = x$field_name,
                              min_date = x$latest_date,
                              download_size = download_size)
-    
+
     query_start_time <- Sys.time()
     query_output <- pb_mc_api_pull(urls)
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-    
+
     if(!is.null(query_output) & nrow(query_output)>0){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
     }
-  
+
   #Combine the query output with the old dataset and save
+    #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
+  full_idvars_output <- get_idvars_only(table_name = table_name,
+                                        id_vars = id_vars)
+
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
-                                      id_vars = id_vars)
+                                      id_vars = id_vars,
+                                      full_idvars_output = full_idvars_output)
 
   #Get the cache dates for the newly saved table
   update_cache_dates <- get_update_cache_dates(query_output = new_query_output,
@@ -531,7 +548,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Update the cache date fields
   update_cache(.file_name = table_name,
                .val_to_update = "latest_date",
-               .val = as.Date(update_cache_dates$latest_date), 
+               .val = as.Date(update_cache_dates$latest_date),
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
   update_cache(.file_name = table_name,
@@ -544,6 +561,15 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                .val = field_name,
                cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')
   )
+  #Get change summary comparing final file to latest archived file
+  change_summary <- compare_final_to_archive(table_name,
+                           id_vars,
+                           categorical_max = 30)
+  #Save change_summary to cache
+  save_change_summary(table_name = table_name,
+                      change_summary = change_summary,
+                      change_log_folder = NULL,
+                      n_change_log = 30)
 }
 
 #' create a URL to collect the count where field_name is not missing
@@ -574,7 +600,7 @@ get_table_count <- function(table_name,
                    "&$top=0") %>%
     httr::modify_url()
   }
-  
+
   response <- httr::GET(my_url)
 
   response %>%
@@ -619,9 +645,10 @@ create_url_array <- function(table_name,
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
                                 field_name = field_name)
-
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
-  
+  options(scipen = prior_scipen)
   return(urls)
 
 }
@@ -632,7 +659,7 @@ create_url_array <- function(table_name,
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){
   p()
-  
+
   httr::GET(url) %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
@@ -817,24 +844,24 @@ get_polis_data <- function(folder = NULL,
                            token = "",
                            verbose=TRUE,
                            dev = FALSE){
-  
+
 
   #If folder location and token not provided, prompt user for input:
-  
+
   if (is.null(folder) && interactive() && .Platform$OS.type == "windows"){
     folder <- utils::choose.dir(default = getwd(), caption = "Select a folder where POLIS data will be saved:")
   }
-  
+
   #If folder structure and cache not created already, create them
   init_polis_data_struc(folder=folder, token=token)
-    
-  #If token not provided, check for it in cache. 
+
+  #If token not provided, check for it in cache.
     if(load_specs()$polis$token == ""){
       # If not in cache, if the token was provided as a function parameter, use that, else prompt for token entry
         valid_token <- TRUE
         if(token == ""){
           token <- readline("Enter POLIS APIv2 Token: ")
-        }  
+        }
         #Check if token is valid, stop if not
         valid_token <- validate_token(token)
         if(valid_token == FALSE){
@@ -847,10 +874,10 @@ get_polis_data <- function(folder = NULL,
       write_yaml(specs, specs_yaml)
       Sys.setenv("token" = token)
     }
-  
+
   #Archive all data files in the POLIS data folder
-  archive_last_data()  
-  
+  archive_last_data()
+
   #Get default POLIS table names, field names, and download sizes
   if(dev == TRUE){
   defaults <- load_defaults() %>%
@@ -859,9 +886,9 @@ get_polis_data <- function(folder = NULL,
   if(dev == FALSE){
     defaults <- load_defaults()
   }
-  
+
   #run get_polis_table iteratively over all tables
-  
+
   for(i in 1:nrow(defaults)){
     table_name <- defaults$table_name[i]
     field_name <- defaults$field_name[i]
@@ -877,7 +904,12 @@ get_polis_data <- function(folder = NULL,
                     download_size = download_size,
                     table_name_descriptive = table_name_descriptive)
   }
+
+  #add cache data as attributes to rds
+  add_cache_attributes()
+
   cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
+  print_latest_change_log_summary()
 }
 
 #Run a simple API call to check if the user-provided token is valid
@@ -906,14 +938,14 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
       dir.create(archive_folder)
       }
   }
-  
+
   #Get list of rds files to archive from polis_data_folder
   current_files <- list.files(load_specs()$polis_data_folder) %>%
     stringr::str_subset(., pattern=".rds") %>%
     stringr::str_remove(., pattern=".rds")
-  
+
   #for each item in current_files list, check if an archive subfolder exists, and if not then create it
-  for(i in current_files){  
+  for(i in current_files){
     if(file.exists(paste0(archive_folder, "\\", i)) == FALSE){
         dir.create(paste0(archive_folder, "\\", i))
     }
@@ -924,7 +956,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         stringr::str_remove(., pattern=".rds")
         archive_list_timestamp <- c()
         for(j in archive_list){
-          timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+          timestamp <- as.POSIXct(attr(readRDS(paste0(archive_folder, "\\", i, "\\", j,".rds")), which="updated"))
           archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
         }
       oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
@@ -936,7 +968,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
       }
       #write the current file to the archive subfolder
-      current_file_timestamp <- file.info(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))$ctime[1]
+      current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
       current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
       write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
       #remove the current file from the main folder
@@ -944,234 +976,370 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
   }
 }
 
+revert_from_archive <- function(last_good_date = Sys.Date()-1){
+  folder <- load_specs()$polis_data_folder
+  archive_folder <- paste0(load_specs()$polis_data_folder,"\\archive")
 
-#data cleaning: standardize variable names by the following rules: [From: https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
-  # Parse letter cases and separators to a consistent format (e.g. snake_case)
-  # Remove leading/trailing/repeating spaces
-  # Replace special characters with alphanumeric (e.g. o to oe)
-  # Append numbers to duplicated names
-  # Convert '%' to 'percent' and '#' to number
-
-  cleaning_var_names_initial <- function(input_dataframe = NULL,
-                                         case="snake"){
-    if(!is.null(input_dataframe)){
-    input_dataframe <- input_dataframe %>%
-      janitor::clean_names(case=case) %>%
-      rename_all(stringi::stri_trans_general,
-                 id = "Latin-ASCII")
-    }
-    return(input_dataframe)
-  }
-  
-#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https://r4ds.had.co.nz/data-import.html]
-  # 1. logical: contains only "F", "T", "FALSE", or "TRUE"
-  # 2. integer: contains only numeric characters (and -).
-  # 3. double: contains only valid doubles (including numbers like 4.5e-5)
-  # 4. number: contains valid doubles with the grouping mark inside.
-  # 5. time: matches the default time_format
-  # 6. date: matches the default date_format
-  # 7. date-time: any ISO8601 date
-  # 8. If none of the above apply, then keep col as character.
-  cleaning_var_class_initial <- function(input_dataframe = NULL){
-    if(!is.null(input_dataframe)){
-      #Get 3 sets of 1000 rows to use to guess classes and compare
-        #if <1000 rows, the full dataset will be used to guess classes (no need to compare)
-      if(nrow(input_dataframe) > 1000){
-      set1 <- input_dataframe %>%
-        #Sample 1000 rows at random 
-        sample_n(size=1000, replace=FALSE)
-      class_set1 <- set1 %>%
-        mutate_all( ~ guess_parser(.)) %>%
-        unique() 
-        
-      set2 <- input_dataframe %>%
-        head(1000)
-      class_set2 <- set2 %>%
-        mutate_all( ~ guess_parser(.)) %>%
-        unique() 
-      
-      set3 <- input_dataframe %>%
-        tail(1000)
-      class_set3 <- set3 %>%
-        mutate_all( ~ guess_parser(.)) %>%
-        unique() 
-      
-      class_set <- class_set1 %>%
-        bind_rows(class_set2) %>%
-        bind_rows(class_set3) %>%
-        unique()
-      
-      class_set_keep_character <- class_set %>%
-        summarise_all(n_distinct) %>%
-        t() %>%
-        as.data.frame() %>%
-        rename(number_of_class_guesses = V1) %>%
-        filter(number_of_class_guesses > 1)
-      
-      class_set_keep_character$var_name <- row.names(class_set_keep_character)
-      class_set <- class_set %>%
-        head(1) %>%
-        t() %>%
-        as.data.frame() %>%
-        rename(class = V1) 
-      
-      class_set$var_name <- row.names(class_set)
-      class_set <- class_set %>% 
-        mutate(class = ifelse(var_name %in% class_set_keep_character$var_name, "character", class))
-      rownames(class_set) = NULL
-      class_set <- class_set %>%
-        pivot_wider(names_from = var_name, values_from=class)
+  #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
+    #get directory of subfolders
+      subfolder_list <- list.files(archive_folder)
+    #for each item in subfolder_list, get all file names then subset to most recent
+      for(i in subfolder_list){
+        subfolder_files <- list.files(paste0(archive_folder, "\\", i))
+        file_dates <- c()
+        for(j in subfolder_files){
+          file_date <- attr(readRDS(paste0(archive_folder, "\\", i, "\\", j)),which="updated")
+          file_dates <- c(file_dates, file_date)
+        }
+        file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+          filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
+          arrange(desc(create_date)) %>%
+          slice(1))$name
+        #load file to keep
+        if(length(file_to_keep) > 0){
+        file_to_keep <- readRDS(paste0(archive_folder, "\\", i, "\\", file_to_keep))
+        #write file to keep to data folder
+        write_rds(file_to_keep, paste0(folder,"\\",i,".rds"))
+        }
+        if(length(file_to_keep) == 0){
+          warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
+        }
       }
-      if(nrow(input_dataframe <= 1000)){
-        class_set <- input_dataframe %>%
-          mutate_all( ~ guess_parser(.)) %>%
-          unique() 
+  #Update the cache to reflect the reverted files
+      update_cache_from_files()
+}
+
+update_cache_from_files <- function(){
+  #read in cache
+  cache <- readRDS(file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
+
+  #update the created, updated, and latest dates in the cache
+    #get list of rds files
+      current_files <- list.files(load_specs()$polis_data_folder) %>%
+        stringr::str_subset(., pattern=".rds") %>%
+        stringr::str_remove(., pattern=".rds")
+    #For each rds, read its attributes, assign attributes to cache
+      for(i in current_files){
+        #read attributes
+        attr_created <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "created")
+        attr_date_field <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "date_field")
+        attr_file_type <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "file_type")
+        attr_latest_date <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "latest_date")
+        attr_updated <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "updated")
+        cache <- cache %>%
+          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin),
+                 date_field = ifelse(file_name == i, attr_date_field, date_field),
+                 file_type = ifelse(file_name == i, attr_file_type, file_type),
+                 latest_date = as.Date(ifelse(file_name == i, attr_latest_date, latest_date), format=("%Y-%m-%d"), origin=lubridate::origin),
+                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin))
       }
-      input_dataframe <- input_dataframe %>%
-        mutate_at(colnames(class_set), parse_guess) 
-      
-      #Convert POSIXct to date when no time info is available
-        posixct_dates <- input_dataframe %>%
-          select_if(is.POSIXct) %>%
-          mutate_all(., ~ifelse((strftime(as.POSIXlt(.), format="%H:%M:%S"))=="00:00:00", 0,1)) %>%
-          summarise_all(max, na.rm=TRUE) %>%
-          t() %>%
-          as.data.frame() %>%
-          rename(date_and_time = V1) %>%
-          filter(date_and_time == 0) %>%
-          t() %>%
-          colnames()
-        input_dataframe <- input_dataframe %>%
-          mutate_at(posixct_dates, as.Date)
-    }
-    return(input_dataframe)
-  }
+      #Write revised cache
+      write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
+}
 
-#data cleaning: remove duplicates either across all vars, or a set of vars if specified by the user
-cleaning_dedup <- function(input_dataframe = NULL,
-                          dedup_vars = NULL #a vector of var names to deduplicate on
-                          ){
-  if(!is.null(input_dataframe)){
-      if(is.null(dedup_vars)){
-        input_dataframe <- input_dataframe %>%
-          distinct(across(everything()))
+#add cache data as attributes to rds
+add_cache_attributes <- function(){
+  #Get list of rds
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+
+  #For each rds, read it in, assign attributes from cache, and save it
+    for(i in current_files){
+    #get cache entry
+      cache_entry <- read_cache(.file_name = i)
+    #read in file
+      file <- readRDS(paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    #Assign attributes
+      attributes(file)$created <- cache_entry$created
+      attributes(file)$date_field <- cache_entry$date_field
+      attributes(file)$file_name <- cache_entry$file_name
+      attributes(file)$file_type <- cache_entry$file_type
+      attributes(file)$latest_date <- cache_entry$latest_date
+      attributes(file)$updated <- cache_entry$updated
+    #Write file
+      write_rds(file, paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
+    }
+}
+
+#for any table, pull just the idvars for a check for deletions in POLIS and a
+# a double-check for any additions in POLIS not captured by the date_field query
+
+create_url_array_idvars <- function(table_name = table_name,
+                                    id_vars = id_vars){
+  # construct general URL
+    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$select=", paste(id_vars, collapse=","),
+                   "&$inlinecount=allpages",
+                   '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+  # Get table size
+      my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
+                         paste0(table_name, "?"),
+                         "$inlinecount=allpages",
+                         '&token=',load_specs()$polis$token,
+                         "&$top=0") %>%
+          httr::modify_url()
+
+     response <- httr::GET(my_url2)
+
+     table_size <- response %>%
+                    httr::content(type='text',encoding = 'UTF-8') %>%
+                    jsonlite::fromJSON() %>%
+                    {.$odata.count} %>%
+                    as.integer()
+  # build URL array
+    urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
+    return(urls)
+}
+
+get_idvars_only <- function(table_name,
+                            id_vars){
+  urls <- create_url_array_idvars(table_name, id_vars)
+  query_start_time <- Sys.time()
+  query_output <- pb_mc_api_pull(urls)
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+  # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
+  return(query_output)
+}
+
+#function to remove the obs deleted from the POLIS table from the saved table
+find_and_remove_deleted_obs <- function(full_idvars_output,
+                                  new_complete_file,
+                                  id_vars){
+  id_vars <- as.vector(id_vars)
+  new_complete_file_idvars <- new_complete_file %>%
+    select(id_vars)
+  deleted_obs <- new_complete_file_idvars %>%
+    anti_join(full_idvars_output, by=id_vars)
+  new_complete_file <- new_complete_file %>%
+    anti_join(deleted_obs, by=id_vars)
+  return(new_complete_file)
+}
+
+compare_final_to_archive <- function(table_name,
+                                     id_vars,
+                                     categorical_max = 30){
+  id_vars <- as.vector(id_vars)
+  #Load new_file
+  new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
+
+  #load latest file in archive subfolder
+  archive_subfolder <- paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)
+
+  #for each item in subfolder_list, get all file names then subset to most recent
+    subfolder_files <- list.files(paste0(archive_subfolder))
+    file_dates <- c()
+    for(j in subfolder_files){
+      file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
+      file_dates <- c(file_dates, file_date)
+    }
+    latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+                       mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+                       arrange(desc(create_date)) %>%
+                       slice(1))$name
+    change_summary <- NULL
+    if(length(latest_file) > 0){
+      #load latest_file
+      latest_file <- readRDS(paste0(archive_subfolder, "\\", latest_file))
+
+      #get metadata for latest file and new_file
+      new_file_metadata <- get_polis_metadata(query_output = new_file,
+                         table_name = table_name,
+                         categorical_max = categorical_max)
+      old_file_metadata <- get_polis_metadata(query_output = latest_file,
+                                              table_name = table_name,
+                                              categorical_max = categorical_max)
+
+      change_summary <- metadata_comparison(new_file_metadata, old_file_metadata)[2:5]
+
+      #count obs added to new_file and get set
+      in_new_not_old <- new_file %>%
+        anti_join(latest_file, by=as.vector(id_vars))
+
+      #count obs removed from old_file and get set
+      in_old_not_new <- latest_file %>%
+        anti_join(new_file, by=as.vector(id_vars))
+
+      #count obs modified in new file compared to old and get set
+        in_new_and_old_but_modified <- new_file %>%
+          inner_join(latest_file, by=as.vector(id_vars)) %>%
+          #restrict to cols in new and old
+          select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
+          #wide_to_long
+          pivot_longer(cols=-id_vars) %>%
+          mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
+          mutate(name = str_sub(name, 1, -3)) %>%
+          #long_to_wide
+          pivot_wider(names_from=source, values_from=value) %>%
+          filter(new != old)
+
+      #summary counts
+        n_added <- nrow(in_new_not_old)
+        n_edited <- nrow(in_new_and_old_but_modified %>%
+                      select(id_vars) %>%
+                      unique())
+        n_deleted <- nrow(in_old_not_new)
+        obs_change <- c(n_added = n_added,
+                        n_edited = n_edited,
+                        n_deleted = n_deleted)
+
+      #add summary to change_summary along with datasets
+      change_summary <- append(change_summary,
+                             list(obs_change = obs_change,
+                                  obs_added = in_new_not_old,
+                                  obs_edited = in_new_and_old_but_modified,
+                                  obs_deleted = in_old_not_new))
+
       }
-    if(!is.null(dedup_vars)){
-      input_dataframe <- input_dataframe %>%
-        distinct(across(as.vector(dedup_vars)))
+    return(change_summary)
+}
+
+save_change_summary <- function(table_name,
+                                change_summary,
+                                change_log_folder = NULL,
+                                n_change_log = 30){
+  #If change_log_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(change_log_folder)){
+    change_log_folder = paste0(load_specs()$polis_data_folder,"\\change_log")
+    if(file.exists(change_log_folder) == FALSE){
+      dir.create(change_log_folder)
     }
   }
-  return(input_dataframe)
-}
 
-#data cleaning: remove empty rows and columns
-cleaning_remove_empty_rows <- function(input_dataframe = NULL){
-  if(!is.null(input_dataframe)){
-    input_dataframe <- input_dataframe %>%
-      janitor::remove_empty(which=c("rows"))
+  #If change_log subfolder does not exist, then create it
+  change_log_subfolder = paste0(load_specs()$polis_data_folder,"\\change_log\\", table_name)
+  if(file.exists(change_log_subfolder) == FALSE){
+    dir.create(change_log_subfolder)
   }
-  return(input_dataframe)
+
+  #delete the oldest file in subfolder if there are >= n_change_log files in the subfolder
+  change_log_list <- list.files(change_log_subfolder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  change_log_list_timestamp <- c()
+  for(j in change_log_list){
+    timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+    change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
+  }
+  if(length(change_log_list) > 0){
+  oldest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
+                    mutate(timestamp   = as.POSIXct(timestamp)) %>%
+                    arrange(timestamp) %>%
+                    slice(1))$file %>%
+    paste0(., ".rds")
+  }
+  if(length(change_log_list) >= n_change_log){
+    file.remove(paste0(change_log_subfolder, "\\", oldest_file))
+  }
+  #write the current file to the archive subfolder
+  write_rds(change_summary, paste0(change_log_subfolder, "\\", table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds"))
 }
 
-#data cleaning: rename from file
-cleaning_var_names_from_file <- function(table_name = NULL,
-                                         input_dataframe = NULL,
-                                         var_name_file = NULL,
-                                         desired_naming_convention = NULL){
-  if(is.null(var_name_file)){
-    #Check if file exists. if not, then create the folder and download the file
-    if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds")) == FALSE){
-      if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles")) == FALSE){
-        dir.create(paste0(load_specs()$polis_data_folder, "/datafiles"))
+#function which prints the latest change log into console
+print_latest_change_log_summary <- function(){
+  #load and combine latest change_log for all tables
+    #Check if change_log folder exists. If not, go to end.
+    change_log_folder <- paste0(load_specs()$polis_data_folder,"\\change_log")
+    if(file.exists(change_log_folder) == TRUE){
+      #Get list of subfolders
+      change_log_subfolder_list <- list.files(change_log_folder)
+      #Get list of latest file name within each change_log_subfolder
+      change_log_file_list <- c()
+      obs_change_combined <- data.frame()
+      class_changed_vars_combined <- data.frame()
+      new_response_combined <- data.frame()
+      lost_vars_combined <- data.frame()
+      new_vars_combined <- data.frame()
+      for(i in change_log_subfolder_list){
+        change_log_list <- c()
+        change_log_subfolder <- paste0(change_log_folder, "\\", i)
+        change_log_list <- list.files(change_log_subfolder) %>%
+          stringr::str_subset(., pattern=".rds") %>%
+          stringr::str_remove(., pattern=".rds")
+        change_log_list_timestamp <- c()
+        for(j in change_log_list){
+          timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+          change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
+        }
+        if(length(change_log_list) > 0){
+          newest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
+                          mutate(timestamp   = as.POSIXct(timestamp)) %>%
+                          arrange(desc(timestamp)) %>%
+                          slice(1))$file %>%
+          paste0(., ".rds")
+          change_log <- readRDS(paste0(change_log_subfolder, "\\", newest_file))
+          new_response <- change_log$new_response %>%
+            mutate(table_name = i)
+          class_changed_vars <- change_log$class_changed_vars %>%
+            mutate(table_name = i)
+          if(length(change_log$lost_vars) > 0){
+          lost_vars <- c(i, paste(change_log$lost_vars, ","))
+          }
+          if(length(change_log$lost_vars) == 0){
+            lost_vars <- c()
+          }
+          if(length(change_log$lost_vars) > 0){
+            new_vars <- c(i, paste(change_log$new_vars, ","))
+          }
+          if(length(change_log$new_vars) == 0){
+            new_vars <- c()
+          }
+          obs_change <- as.data.frame(change_log$obs_change)
+          obs_change$change <- rownames(obs_change)
+          obs_change <- obs_change %>%
+            pivot_wider(names_from = change, values_from=`change_log$obs_change`) %>%
+            mutate(table_name = i)
+
+          obs_change_combined <- obs_change_combined %>%
+            bind_rows(obs_change)
+          class_changed_vars_combined <- class_changed_vars_combined %>%
+            bind_rows(class_changed_vars)
+          new_response_combined <- new_response_combined %>%
+            bind_rows(new_response)
+          lost_vars_combined <- lost_vars_combined %>%
+            rbind(lost_vars)
+          if(ncol(lost_vars_combined) == 2){colnames(lost_vars_combined) <- c("table_name", "lost_vars")}
+          new_vars_combined <- new_vars_combined %>%
+            rbind(new_vars)
+          if(ncol(new_vars_combined) == 2){colnames(new_vars_combined) <- c("table_name", "new_vars")}
+        }
       }
-      var_name_synonyms <- read.csv("https://raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.rds?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
-      write_rds(var_name_synonyms, paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
+      #for each type of change, filter to where there are changes if needed
+      obs_change_combined <- obs_change_combined %>%
+        rowwise() %>%
+        mutate(tot_change = sum(n_added, n_edited, n_deleted)) %>%
+        ungroup() %>%
+        filter(tot_change > 0) %>%
+        select(table_name, n_added, n_edited, n_deleted)
+
+      #print summary of each type of change
+      if(nrow(new_vars_combined) > 0){
+        print("New variables were found in the following tables:")
+        new_vars_combined
+      } else {print("No new variables were found in any table since last download.")}
+
+      if(nrow(lost_vars_combined) > 0){
+        print("Variables were dropped from the following tables:")
+        lost_vars_combined
+      } else {print("No variables were dropped from any table since last download.")}
+
+      if(nrow(new_response_combined) > 0){
+        print("New categorical responses were found in the following tables/variables:")
+        new_response_combined %>% select(table_name, var_name, in_new_not_old)
+      } else {print("No new categorical responses were found in any table since last download.")}
+
+      if(nrow(class_changed_vars_combined) > 0){
+        print("Changes in variable classes were found in the following tables:")
+        class_changed_vars_combined %>% select(table_name, var_name, old_var_class, new_var_class)
+      } else {print("No changes in variable classes were found in any table since last download.")}
+
+      if(nrow(obs_change_combined) > 0){
+        print("The following counts of observations were added/edited/deleted from each table since the last download:")
+        obs_change_combined
+      } else {print("No observation additions/edits/deletions were found in any table since last download.")}
     }
-    var_name_synonyms <- readRDS(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
-  }
-  if(!is.null(var_name_file)){
-    var_name_synonyms <- readRDS(var_name_file)
-  }
-
-  
-  table_var_name_synonyms <- var_name_synonyms %>%
-    filter(table_name == table_name) %>%
-    janitor::remove_empty(which=c("rows", "cols")) %>%
-    janitor::clean_names() %>%
-    select(-c("table_name"))
-  
-  if(is.null(desired_naming_convention)){
-    desired_naming_convention <- colnames(table_var_name_synonyms)[utils::menu(colnames(table_var_name_synonyms), title="Select a Variable Naming Convention:")]
-  }
-  original_to_desired <- var_name_synonyms %>%
-    select(original_var_name, {{desired_naming_convention}} )
-  for(i in 1:ncol(input_dataframe)){
-    original_name <- colnames(input_dataframe)[i]
-    new_name <- (original_to_desired %>%
-      filter(original_var_name == {{original_name}}))[1,2]
-    input_dataframe <- input_dataframe %>%
-      rename({{new_name}} := {{original_name}})
-  }
-  return(input_dataframe)
 }
-
-cleaning_var_class_from_metadata <- function(){
-  url <- 'https://extranet.who.int/polis/api/v2/$metadata'
-  
-  nodes <- read_html(url, xpath = '//h3 | //*[contains(concat( " ", @class, " 
-" ), concat( " ", "entry-title", " " ))]')
-  
-  page <- htmlTreeParse(nodes)$children[["html"]][["body"]][["edmx"]][["dataservices"]][["schema"]] %>%
-    xmlToList(., simplify=TRUE, addAttributes = TRUE)
-  
-  metadata <- data.frame()
-  for(i in 1:(length(page)-1)){
-    table <- page[[i]][[".attrs"]][[1]]
-    for(j in 2:(length(page[[i]])-1)){
-      polis_name <- page[[i]][[j]][["name"]]
-      polis_type <- page[[i]][[j]][["type"]]
-      row <- c(table, polis_name, polis_type)
-      metadata <- rbind(metadata, row) %>%
-        rename(table = 1, polis_name = 2, polis_type = 3)
-      print(paste0(i, ", ", j))
-    }
-  }  
-  metadata <- metadata %>%
-    mutate(table = str_replace_all(table, "ApiV2", ""),
-           polis_type = str_replace_all(polis_type, "Edm.", ""),
-           class = case_when(polis_type %in% c("Boolean") ~ "logical",
-                             polis_type %in% c("DateTime") ~ "POSIXct",
-                             polis_type %in% c("Decimal", "Double", "Int16", "Int32", "Int64") ~ "numeric",
-                             polis_type %in% c("Guid", "String") ~ "character",
-                             TRUE ~ NA_character_))
-  return(metadata)
-}
-
-#data cleaning: convert all empty strings to NA
-cleaning_blank_to_na <- function(input_dataframe){
-  input_dataframe <- input_dataframe %>%
-    mutate_all(list(~str_trim(.))) %>% #remove all leading/trailing whitespaces as well as replace all " " with ""
-    mutate_all(list(~na_if(.,""))) #replace "" with NA
-}
-
-#data cleaning: replace all special characters with alphanumeric
-cleaning_replace_special <- function(input_dataframe){
-  #for each character variable, replace special characters
-  input_dataframe <- input_dataframe %>%
-    mutate_if(is.character, 
-              stringi::stri_trans_general,
-              id = "Latin-ASCII") 
-  return(input_dataframe)
-}
-
-clean_polis_data <- function(input_dataframe = NULL){
-  input_dataframe <- cleaning_var_names_initial(input_dataframe)
-  input_dataframe <- cleaning_var_class_initial(input_dataframe)
-  input_dataframe <- cleaning_remove_empty_rows(input_dataframe)
-  input_dataframe <- cleaning_blank_to_na(input_dataframe)
-  input_dataframe <- cleaning_replace_special(input_dataframe)
-  input_dataframe <- cleaning_dedup(input_dataframe)
-  input_dataframe <- cleaning_var_class_initial(input_dataframe) #running cleaning_var_class_initial a second time converts character to logical 
-  return(input_dataframe)
-}
-

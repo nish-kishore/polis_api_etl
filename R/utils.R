@@ -196,6 +196,7 @@ append_and_save <- function(query_output = query_output,
     if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
+    
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
@@ -900,6 +901,10 @@ get_polis_data <- function(folder = NULL,
                     download_size = download_size,
                     table_name_descriptive = table_name_descriptive)
   }
+  
+  #add cache data as attributes to rds
+  add_cache_attributes() 
+  
   cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
   print_latest_change_log_summary()
 }
@@ -948,7 +953,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         stringr::str_remove(., pattern=".rds")
         archive_list_timestamp <- c()
         for(j in archive_list){
-          timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+          timestamp <- as.POSIXct(attr(readRDS(paste0(archive_folder, "\\", i, "\\", j,".rds")), which="updated"))
           archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
         }
       oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
@@ -960,7 +965,7 @@ archive_last_data <- function(archive_folder = NULL, #folder pathway where the d
         file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
       }
       #write the current file to the archive subfolder
-      current_file_timestamp <- file.info(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))$ctime[1]
+      current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
       current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
       write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
       #remove the current file from the main folder
@@ -1335,3 +1340,4 @@ print_latest_change_log_summary <- function(){
       } else {print("No observation additions/edits/deletions were found in any table since last download.")}
     }
 }
+

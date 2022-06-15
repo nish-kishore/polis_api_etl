@@ -10,7 +10,7 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 table_name = "Synonym",
                 field_name = "CreatedDate",
                 id_vars = "Id",
-                download_size = 500)
+                download_size = 1000)
 
 # Examples of get_polis_table:
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
@@ -73,4 +73,4 @@ get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
 test <- clean_polis_data(EnvSample)
 
 
-
+test <- clean_polis_data(Synonym)

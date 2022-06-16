@@ -449,10 +449,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   x <- read_table_in_cache_dir(table_name)
   
   #Create an API URL and use it to query POLIS
-  urls <- create_url_array(table_name = table_name,
-                           field_name = x$field_name,
-                           min_date = x$latest_date,
-                           download_size = download_size)
+  # urls <- create_url_array(table_name = table_name,
+  #                          field_name = x$field_name,
+  #                          min_date = x$latest_date,
+  #                          download_size = download_size)
+  urls <- create_url_array_id_method(table_name = table_name,
+                                     field_name = x$field_name,
+                                     min_date = x$latest_date,
+                                     id_vars = id_vars)
   query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()
@@ -1355,5 +1359,76 @@ clean_polis_data <- function(input_dataframe = NULL){
   input_dataframe <- cleaning_dedup(input_dataframe)
   input_dataframe <- cleaning_var_class_initial(input_dataframe) #running cleaning_var_class_initial a second time converts character to logical 
   return(input_dataframe)
+}
+
+create_url_array_idvars_and_field_name <- function(table_name = table_name,
+                                                   id_vars = id_vars,
+                                                   field_name = field_name,
+                                                   min_date = min_date){
+  # construct general URL
+  filter_url_conv <- paste0("(",
+         date_min_conv(field_name, min_date),
+         ") or (",
+         date_null_conv(field_name), ")")
+    
+  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+                   paste0(table_name, "?"),
+                   "$select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
+                   "&filter=",
+                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   # "&select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
+                   # "&select=", paste0(paste(id_vars, collapse=",")),
+                   "&$inlinecount=allpages",
+                   '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+  # Get table size
+    my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
+                    paste0(table_name, "?"),
+                    "$inlinecount=allpages",
+                    '&token=',load_specs()$polis$token,
+                    "&$top=0") %>%
+    httr::modify_url()
+  
+  response <- httr::GET(my_url2)
+  
+  table_size <- response %>%
+    httr::content(type='text',encoding = 'UTF-8') %>%
+    jsonlite::fromJSON() %>%
+    {.$odata.count} %>%
+    as.integer()
+  # build URL array
+  urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
+  return(urls)
+}
+create_url_array_id_section <- function(table_name = table_name,
+                                        id_section_table = id_section_table){
+  urls <- c()
+  for(i in id_section_table$filter_url_conv){
+    url <- paste0('https://extranet.who.int/polis/api/v2/',
+                  paste0(table_name, "?"),
+                  '$filter=', 
+                  i,
+                  '&token=',load_specs()$polis$token) %>%
+      httr::modify_url()
+    urls <- c(urls, url)
+  }
+  return(urls)
+}
+create_url_array_id_method <- function(table_name,
+                            id_vars,
+                            field_name,
+                            min_date = min_date){
+  urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
+  id_list <- pb_mc_api_pull(urls)
+  id_list <- as.numeric(id_list$Id)
+  min_id <- min(id_list, na.rm=TRUE)
+  max_id <- max(id_list, na.rm=TRUE)
+  #create list of seq first to last by 1000
+  break_list_start <- seq(min_id, max_id, by=1000)
+  break_list_end <- seq(min_id+999, max_id+999, by=1000)
+  id_section_table <- data.frame(start=break_list_start, end=break_list_end) %>%
+    mutate(filter_url_conv = paste0("((Id ge ", start, ") and (Id le ", end,"))"))
+  urls <- create_url_array_id_section(table_name, id_section_table)
+  return(urls)
 }
 

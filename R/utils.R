@@ -1420,15 +1420,62 @@ create_url_array_id_method <- function(table_name,
                             min_date = min_date){
   urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
   id_list <- pb_mc_api_pull(urls)
-  id_list <- as.numeric(id_list$Id)
-  min_id <- min(id_list, na.rm=TRUE)
-  max_id <- max(id_list, na.rm=TRUE)
+  id_list2 <- id_list %>% 
+    select(Id) %>%
+    unique() %>%
+    mutate(Id = as.numeric(Id)) %>%
+    arrange(Id) %>%
+    mutate(is_lag_sequential_fwd = ifelse(lag(Id) == Id -1, 1, 0)) %>%
+    mutate(is_lag_sequential_fwd = ifelse(is.na(is_lag_sequential_fwd), 0, is_lag_sequential_fwd)) %>%
+    arrange(desc(Id)) %>%
+    mutate(is_lag_sequential_rwd = ifelse(lag(Id) == Id + 1, 1, 0)) %>%
+    mutate(is_lag_sequential_rwd = ifelse(is.na(is_lag_sequential_rwd), 0, is_lag_sequential_rwd)) %>%
+    rowwise() %>%
+    mutate(flag = sum(is_lag_sequential_fwd, is_lag_sequential_rwd)) %>%
+    mutate(flag = ifelse(is.na(flag), 0, flag)) %>%
+    ungroup() 
+  
+  individual_ids <- id_list2 %>%
+    filter(flag==0) %>%
+    mutate(start = Id, end = Id) %>%
+    select(start, end)
+
+  id_grps <- id_list2 %>%    
+    filter(flag == 1) %>%
+    select(Id) %>%
+    arrange(Id) %>%
+    mutate(x = ifelse(((row_number() %% 2) == 0), "end", "start")) %>%
+    mutate(grp = ifelse(x == "start", row_number(), lag(row_number()))) %>%
+    pivot_wider(id_cols= grp, names_from = x, values_from=Id) %>%
+    select(-grp) %>%
+    rbind(individual_ids) %>%
+    unique()
+  
+  for(i in 1:nrow(id_grps)){
+    min_id <- id_grps$start[i]
+    max_id <- id_grps$end[i]
+    break_list_start <- seq(min_id, max_id, by=1000)
+    break_list_end <- seq(min_id+999, max_id+999, by=1000)
+    if(i == 1){
+    id_section_table <- data.frame(start=break_list_start, end=break_list_end, min=min_id, max=max_id) %>%
+      mutate_all(as.numeric) %>%
+      rowwise() %>%
+      mutate(end = ifelse(end > max, max, end)) %>%
+      ungroup() %>%
+      mutate(filter_url_conv = paste0("((Id ge ", start, ") and (Id le ", end,"))"))
+    }
+    if(i != 1){
+      id_section_table <- id_section_table %>%
+        bind_rows(data.frame(start=break_list_start, end=break_list_end, min=min_id, max=max_id) %>%
+                    mutate_all(as.numeric) %>%
+                    rowwise() %>%
+                    mutate(end = ifelse(end > max, max, end)) %>%
+                    ungroup() %>%
+                    mutate(filter_url_conv = paste0("((Id ge ", start, ") and (Id le ", end,"))")))
+    }
+  }  
   #create list of seq first to last by 1000
-  break_list_start <- seq(min_id, max_id, by=1000)
-  break_list_end <- seq(min_id+999, max_id+999, by=1000)
-  id_section_table <- data.frame(start=break_list_start, end=break_list_end) %>%
-    mutate(filter_url_conv = paste0("((Id ge ", start, ") and (Id le ", end,"))"))
-  urls <- create_url_array_id_section(table_name, id_section_table)
+    urls <- create_url_array_id_section(table_name, id_section_table)
   return(urls)
 }
 

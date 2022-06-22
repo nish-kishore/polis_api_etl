@@ -459,11 +459,13 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
      x$field_name != "None"){
+    print("Pulling ID variables:")
     urls <- create_url_array_id_method(table_name = table_name,
                                      field_name = x$field_name,
                                      min_date = x$latest_date,
                                      id_vars = id_vars)
   }
+  print("Pulling all variables:")
   query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()

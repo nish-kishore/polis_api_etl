@@ -21,7 +21,7 @@ init_polis_data_struc <- function(folder, token){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT",
-      "latest_date"=as_date("2021-01-01"),
+      "latest_date"=as_date("1900-01-01"),
       "date_field" = "N/A"
     ) %>%
       write_rds(cache_file)
@@ -85,10 +85,10 @@ init_polis_data_table <- function(table_name = table_name,
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
-        "updated"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
+        "updated"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
         "file_type"="rds", #currently, hard-coded as RDS. Could revise to allow user to specify output file type (e.g. rds, csv, other)
         "file_name"= table_name,
-        "latest_date"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
+        "latest_date"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
@@ -565,7 +565,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
 #' create a URL to collect the count where field_name is not missing
 #' @param
 get_table_count <- function(table_name,
-                           min_date = as_date("2021-01-01"),
+                           min_date = as_date("1900-01-01"),
                            field_name){
 
   filter_url_conv <- make_url_general(
@@ -1357,3 +1357,34 @@ clean_polis_data <- function(input_dataframe = NULL){
   return(input_dataframe)
 }
 
+#Function that moves the rds files in the polis_data folder to an snapshot folder
+save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the datasets will be saved
+                          snapshot_date = Sys.time()
+){
+  #If snapshot_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(snapshot_folder)){
+    snapshot_folder = paste0(load_specs()$polis_data_folder,"\\snapshots")
+    if(file.exists(snapshot_folder) == FALSE){
+      dir.create(snapshot_folder)
+    }
+  }
+  
+  #Create snapshot subfolder
+  x <- gsub(":","", snapshot_date)
+  x <- gsub(" ","_", x)
+  x <- gsub("-","", x)
+  snapshot_subfolder <- paste0(snapshot_folder, "\\snapshot_", x)
+  dir.create(snapshot_subfolder)
+  #Get list of rds files to save in snapshot from polis_data_folder
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #for each item in current_files:
+  
+  #write the current file to the snapshot subfolder:
+  for(i in current_files){
+    write_rds(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")),
+              paste0(snapshot_subfolder, "\\", i,".rds"))
+  }
+}

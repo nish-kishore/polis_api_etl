@@ -21,7 +21,7 @@ init_polis_data_struc <- function(folder, token){
       "updated"=Sys.time(),
       "file_type"="INIT",
       "file_name"="INIT",
-      "latest_date"=as_date("2021-01-01"),
+      "latest_date"=as_date("1900-01-01"),
       "date_field" = "N/A"
     ) %>%
       write_rds(cache_file)
@@ -85,10 +85,10 @@ init_polis_data_table <- function(table_name = table_name,
     readRDS(cache_file) %>%
       bind_rows(tibble(
         "created"=Sys.time(),
-        "updated"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
+        "updated"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the date of last pull will be saved here
         "file_type"="rds", #currently, hard-coded as RDS. Could revise to allow user to specify output file type (e.g. rds, csv, other)
         "file_name"= table_name,
-        "latest_date"=as_date("2021-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
+        "latest_date"=as_date("1900-01-01"), #default date is used in initial POLIS query. It should be set to a value less than the min expected value. Once initial table has been pulled, the latest date in the table will be saved here
         "date_field" = field_name
       )) %>%
       write_rds(cache_file)
@@ -448,21 +448,35 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   x <- NULL
   x <- read_table_in_cache_dir(table_name)
   
+  
   #Create an API URL and use it to query POLIS
-  # urls <- create_url_array(table_name = table_name,
-  #                          field_name = x$field_name,
-  #                          min_date = x$latest_date,
-  #                          download_size = download_size)
-  urls <- create_url_array_id_method(table_name = table_name,
+  if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
+     x$field_name == "None"){
+    urls <- create_url_array(table_name = table_name,
+                           field_name = x$field_name,
+                           min_date = x$latest_date,
+                           download_size = download_size)
+  }
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+     x$field_name != "None"){
+    urls <- create_url_array_id_method(table_name = table_name,
                                      field_name = x$field_name,
                                      min_date = x$latest_date,
                                      id_vars = id_vars)
+  }
   query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
-  
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+     x$field_name != "None"){
+    #get list of IDs within date filter range
+    id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+    #filter query_output to the list of IDs
+    query_output <- query_output %>%
+      filter(Id %in% id_list$Id)
+  }
   #If the query produced any output, summarise it's metadata
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
@@ -510,20 +524,43 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     x <- read_table_in_cache_dir(table_name)
     
     #Create an API URL and use it to query POLIS
-    urls <- create_url_array(table_name = table_name,
-                             field_name = x$field_name,
-                             min_date = x$latest_date,
-                             download_size = download_size)
-    
+    if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
+       x$field_name == "None"){
+      urls <- create_url_array(table_name = table_name,
+                               field_name = x$field_name,
+                               min_date = x$latest_date,
+                               download_size = download_size)
+    }
+    if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+       x$field_name != "None"){
+      urls <- create_url_array_id_method(table_name = table_name,
+                                         field_name = x$field_name,
+                                         min_date = x$latest_date,
+                                         id_vars = id_vars)
+    }
+
     query_start_time <- Sys.time()
     query_output <- pb_mc_api_pull(urls)
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+
+    if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+       x$field_name != "None"){
+      #get list of IDs within date filter range
+      id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+      #filter query_output to the list of IDs
+      query_output <- query_output %>%
+        filter(Id %in% id_list$Id)
+    }
     
     if(!is.null(query_output) & nrow(query_output)>0){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
     }
+  #If the temporary id_list file exists then delete it
+  if(file.exists(paste0(load_specs()$polis_data_folder, "/id_list_temporary_file.rds"))){
+    file.remove(paste0(load_specs()$polis_data_folder, "/id_list_temporary_file.rds"))
+  }
   
   #Combine the query output with the old dataset and save
   new_query_output <- append_and_save(query_output = query_output,
@@ -569,7 +606,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
 #' create a URL to collect the count where field_name is not missing
 #' @param
 get_table_count <- function(table_name,
-                           min_date = as_date("2021-01-01"),
+                           min_date = as_date("1900-01-01"),
                            field_name){
 
   filter_url_conv <- make_url_general(
@@ -968,8 +1005,8 @@ archive_last_data <- function(table_name,
     current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
     current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
     write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
-    #remove the current file from the main folder
-    file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+    #remove the current file from the main folder #Undid this as the current file is needed for append_and_save()
+    # file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
   # }
 }
@@ -1218,7 +1255,8 @@ compare_final_to_archive <- function(table_name,
       
       #count obs modified in new file compared to old and get set
       in_new_and_old_but_modified <- new_file %>%
-        inner_join(latest_file, by=as.vector(id_vars)) %>%
+        ungroup() %>%
+        inner_join(latest_file %>% ungroup(), by=as.vector(id_vars)) %>%
         #restrict to cols in new and old
         select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
         #wide_to_long
@@ -1226,7 +1264,9 @@ compare_final_to_archive <- function(table_name,
         mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
         mutate(name = str_sub(name, 1, -3)) %>%
         #long_to_wide
-        pivot_wider(names_from=source, values_from=value) %>%
+        pivot_wider(names_from=source, values_from=value, values_fn=list) %>%
+        mutate(new = paste(new, collapse=", "),
+               old = paste(old, collapse=", ")) %>%
         filter(new != old)
       
       #summary counts
@@ -1373,9 +1413,9 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
     
   my_url <- paste0('https://extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
-                   "$select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
-                   "&filter=",
+                   "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
+                   "&$select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
                    # "&select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
                    # "&select=", paste0(paste(id_vars, collapse=",")),
                    "&$inlinecount=allpages",
@@ -1418,8 +1458,8 @@ create_url_array_id_method <- function(table_name,
                             id_vars,
                             field_name,
                             min_date = min_date){
-  urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
-  id_list <- pb_mc_api_pull(urls)
+  get_ids_for_url_array(table_name, id_vars, field_name, min_date)
+  id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
   id_list2 <- id_list %>% 
     select(Id) %>%
     unique() %>%
@@ -1434,7 +1474,6 @@ create_url_array_id_method <- function(table_name,
     mutate(flag = sum(is_lag_sequential_fwd, is_lag_sequential_rwd)) %>%
     mutate(flag = ifelse(is.na(flag), 0, flag)) %>%
     ungroup() 
-  
   individual_ids <- id_list2 %>%
     filter(flag==0) %>%
     mutate(start = Id, end = Id) %>%
@@ -1479,3 +1518,23 @@ create_url_array_id_method <- function(table_name,
   return(urls)
 }
 
+check_if_id_exists <- function(table_name,
+                               id_vars = "Id"){
+  url <-  paste0('https://extranet.who.int/polis/api/v2/',
+                        paste0(table_name, "?"),
+                        '$select=', 
+                        paste(id_vars, collapse=", "),
+                        '&token=',load_specs()$polis$token) %>%
+    httr::modify_url()
+  status <- as.character(httr::GET(url)$status_code)
+  id_exists <- ifelse(status=="200", TRUE, FALSE)
+  return(id_exists)
+}
+get_ids_for_url_array <- function(table_name,
+                                  id_vars,
+                                  field_name,
+                                  min_date = min_date){
+  urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
+  id_list <- pb_mc_api_pull(urls)
+  write_rds(id_list, paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+}

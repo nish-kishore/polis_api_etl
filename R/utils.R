@@ -1442,6 +1442,7 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
   urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
   return(urls)
 }
+
 create_url_array_id_section <- function(table_name = table_name,
                                         id_section_table = id_section_table){
   urls <- c()
@@ -1540,3 +1541,36 @@ get_ids_for_url_array <- function(table_name,
   id_list <- pb_mc_api_pull(urls)
   write_rds(id_list, paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
 }
+
+#Function that moves the rds files in the polis_data folder to an snapshot folder
+save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the datasets will be saved
+                          snapshot_date = Sys.time()
+){
+  #If snapshot_folder was not specified, then check if the default exists, if not then create it
+  if(is.null(snapshot_folder)){
+    snapshot_folder = paste0(load_specs()$polis_data_folder,"\\snapshots")
+    if(file.exists(snapshot_folder) == FALSE){
+      dir.create(snapshot_folder)
+    }
+  }
+  
+  #Create snapshot subfolder
+  x <- gsub(":","", snapshot_date)
+  x <- gsub(" ","_", x)
+  x <- gsub("-","", x)
+  snapshot_subfolder <- paste0(snapshot_folder, "\\snapshot_", x)
+  dir.create(snapshot_subfolder)
+  #Get list of rds files to save in snapshot from polis_data_folder
+  current_files <- list.files(load_specs()$polis_data_folder) %>%
+    stringr::str_subset(., pattern=".rds") %>%
+    stringr::str_remove(., pattern=".rds")
+  
+  #for each item in current_files:
+  
+  #write the current file to the snapshot subfolder:
+  for(i in current_files){
+    write_rds(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")),
+              paste0(snapshot_subfolder, "\\", i,".rds"))
+  }
+}
+

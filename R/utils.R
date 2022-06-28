@@ -164,12 +164,12 @@ append_and_save <- function(query_output = query_output,
                             table_name = table_name,
                             full_idvars_output = full_idvars_output){
   
-  idvars <- as.vector(idvars)
+  id_vars <- as.vector(id_vars)
   
   #remove records that are no longer in the POLIS table from query_output
   query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = query_output,
-                                           idvars = idvars)
+                                           id_vars = id_vars)
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
@@ -179,7 +179,7 @@ append_and_save <- function(query_output = query_output,
   #remove records that are no longer in the POLIS table from old_polis
   old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = old_polis,
-                                           idvars = idvars)
+                                           id_vars = id_vars)
         
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
@@ -263,9 +263,9 @@ get_update_cache_dates <- function(query_output,
   if(!is.null(query_output) && nrow(query_output) > 0 && !(field_name %in% colnames(query_output))){
     latest_date <- NA
   }
-      #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
-      updated <- Sys.time()
-  update_cache_dates <- as.data.frame(bind_rows(c(latest_date = latest_date, updated = updated)))
+  #Save the current system time as the date/time of 'updated' - the date the database was last checked for updates
+  updated <- Sys.time()
+  update_cache_dates <- as.data.frame(bind_cols(latest_date = latest_date, updated = updated))
   return(update_cache_dates)
 }
 
@@ -990,13 +990,13 @@ archive_last_data <- function(table_name,
   
   #for each item in current_files list, check if an archive subfolder exists, and if not then create it
   # for(i in current_files){  
-  i <- table_name
-  if(file.exists(paste0(archive_folder, "\\", i)) == FALSE){
-    dir.create(paste0(archive_folder, "\\", i))
+  
+  if(file.exists(paste0(archive_folder, "\\", table_name)) == FALSE){
+    dir.create(paste0(archive_folder, "\\", table_name))
   }
   #for each item in current_files:
   #delete the oldest file in it's subfolder if there are >= n_archive files in the subfolder
-  archive_list <- list.files(paste0(archive_folder, "\\", i)) %>%
+  archive_list <- list.files(paste0(archive_folder, "\\", table_name)) %>%
     stringr::str_subset(., pattern=".rds") %>%
     stringr::str_remove(., pattern=".rds")
   
@@ -1004,7 +1004,7 @@ archive_last_data <- function(table_name,
   if(length(archive_list) > 0){
     archive_list_timestamp <- c()
     for(j in archive_list){
-      timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", i, "\\", j,".rds"))$ctime)
+      timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", table_name, "\\", j,".rds"))$ctime)
       archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
     }
     oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
@@ -1014,15 +1014,15 @@ archive_last_data <- function(table_name,
       paste0(., ".rds")
   }
   if(length(archive_list) >= n_archive){
-    file.remove(paste0(archive_folder, "\\", i, "\\", oldest_file))
+    file.remove(paste0(archive_folder, "\\", table_name, "\\", oldest_file))
   }
   
   #write the current file to the archive subfolder
   
-  if(file.exists(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))){
-    current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")), which="updated")
-    current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
-    write_rds(current_file, paste0(archive_folder, "\\", i, "\\", i, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
+  if(file.exists(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds"))){
+    current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds")), which="updated")
+    current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds"))
+    write_rds(current_file, paste0(archive_folder, "\\", table_name, "\\", table_name, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
     #remove the current file from the main folder #Undid this as the current file is needed for append_and_save()
     # file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
@@ -1244,10 +1244,13 @@ compare_final_to_archive <- function(table_name,
       file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
       file_dates <- c(file_dates, file_date)
     }
+    latest_file <- c()
+    if(length(file_dates) > 0){
     latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
                       mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
                       arrange(desc(create_date)) %>%
                       slice(1))$name
+    }
     change_summary <- NULL
     if(length(latest_file) > 0){
       #load latest_file
@@ -1643,39 +1646,14 @@ update_cache_from_files <- function(){
         attr_latest_date <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "latest_date") 
         attr_updated <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "updated") 
         cache <- cache %>%
-          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin),
+          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M:%S"), origin = lubridate::origin),
                  date_field = ifelse(file_name == i, attr_date_field, date_field),
                  file_type = ifelse(file_name == i, attr_file_type, file_type),
                  latest_date = as.Date(ifelse(file_name == i, attr_latest_date, latest_date), format=("%Y-%m-%d"), origin=lubridate::origin),
-                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M%S"), origin = lubridate::origin))
+                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M:%S"), origin = lubridate::origin))
       }
       #Write revised cache
       write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
-}
-
-#add cache data as attributes to rds
-add_cache_attributes <- function(){
-  #Get list of rds 
-  current_files <- list.files(load_specs()$polis_data_folder) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
-  
-  #For each rds, read it in, assign attributes from cache, and save it
-    for(i in current_files){  
-    #get cache entry
-      cache_entry <- read_cache(.file_name = i)
-    #read in file
-      file <- readRDS(paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
-    #Assign attributes  
-      attributes(file)$created <- cache_entry$created
-      attributes(file)$date_field <- cache_entry$date_field
-      attributes(file)$file_name <- cache_entry$file_name
-      attributes(file)$file_type <- cache_entry$file_type
-      attributes(file)$latest_date <- cache_entry$latest_date
-      attributes(file)$updated <- cache_entry$updated
-    #Write file
-      write_rds(file, paste0(load_specs()$polis_data_folder,"\\", i,".rds"))
-    }
 }
 
 #for any table, pull just the idvars for a check for deletions in POLIS and a
@@ -1724,21 +1702,21 @@ get_idvars_only <- function(table_name,
 #function to remove the obs deleted from the POLIS table from the saved table
 find_and_remove_deleted_obs <- function(full_idvars_output,
                                   new_complete_file,
-                                  idvars){
-  idvars <- as.vector(idvars)
+                                  id_vars){
+  id_vars <- as.vector(id_vars)
   new_complete_file_idvars <- new_complete_file %>%
-    select(idvars)
+    select(id_vars)
   deleted_obs <- new_complete_file_idvars %>%
-    anti_join(full_idvars_output, by=idvars)
+    anti_join(full_idvars_output, by=id_vars)
   new_complete_file <- new_complete_file %>%
-    anti_join(deleted_obs, by=idvars)
+    anti_join(deleted_obs, by=id_vars)
   return(new_complete_file)
 }
 
 compare_final_to_archive <- function(table_name,
-                                     idvars,
+                                     id_vars,
                                      categorical_max = 30){
-  idvars <- as.vector(idvars)
+  id_vars <- as.vector(id_vars)
   #Load new_file
   new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
 
@@ -1752,10 +1730,13 @@ compare_final_to_archive <- function(table_name,
       file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
       file_dates <- c(file_dates, file_date)
     }
+    latest_file <- c()
+    if(length(subfolder_files)>0){
     latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
                        mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
                        arrange(desc(create_date)) %>%
                        slice(1))$name
+    }
     change_summary <- NULL
     if(length(latest_file) > 0){
       #load latest_file
@@ -1773,19 +1754,19 @@ compare_final_to_archive <- function(table_name,
 
       #count obs added to new_file and get set
       in_new_not_old <- new_file %>%
-        anti_join(latest_file, by=as.vector(idvars))
+        anti_join(latest_file, by=as.vector(id_vars))
 
       #count obs removed from old_file and get set
       in_old_not_new <- latest_file %>%
-        anti_join(new_file, by=as.vector(idvars))
+        anti_join(new_file, by=as.vector(id_vars))
 
       #count obs modified in new file compared to old and get set
         in_new_and_old_but_modified <- new_file %>%
-          inner_join(latest_file, by=as.vector(idvars)) %>%
+          inner_join(latest_file, by=as.vector(id_vars)) %>%
           #restrict to cols in new and old
-          select(idvars, paste0(colnames(new_file %>% select(-idvars)), ".x"), paste0(colnames(new_file %>% select(-idvars)), ".y")) %>%
+          select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
           #wide_to_long
-          pivot_longer(cols=-idvars) %>%
+          pivot_longer(cols=-id_vars) %>%
           mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
           mutate(name = str_sub(name, 1, -3)) %>%
           #long_to_wide
@@ -1795,7 +1776,7 @@ compare_final_to_archive <- function(table_name,
       #summary counts
         n_added <- nrow(in_new_not_old)
         n_edited <- nrow(in_new_and_old_but_modified %>%
-                      select(idvars) %>%
+                      select(id_vars) %>%
                       unique())
         n_deleted <- nrow(in_old_not_new)
         obs_change <- c(n_added = n_added,

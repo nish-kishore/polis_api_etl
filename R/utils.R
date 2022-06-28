@@ -538,14 +538,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     
     #Create an API URL and use it to query POLIS
     if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
-       x$field_name == "None"){
+       x$field_name == "None" |
+       table_name %in% c("Virus", "Case")){
       urls <- create_url_array(table_name = table_name,
                                field_name = x$field_name,
                                min_date = x$latest_date,
                                download_size = download_size)
     }
     if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-       x$field_name != "None"){
+       x$field_name != "None" &
+       !(table_name %in% c("Virus", "Case"))){
       urls <- create_url_array_id_method(table_name = table_name,
                                          field_name = x$field_name,
                                          min_date = x$latest_date,

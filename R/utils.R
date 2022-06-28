@@ -706,7 +706,6 @@ create_url_array <- function(table_name,
 #' @param url string of a single url
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){
-<<<<<<< HEAD
   status <- 0
   while(status != 200){
   p()
@@ -724,16 +723,6 @@ get_table_data <- function(url, p){
     }
   }
   return(response_data)
-=======
-  p()
-  
-  httr::GET(url) %>%
-    httr::content(type='text',encoding = 'UTF-8') %>%
-    jsonlite::fromJSON() %>%
-    {.$value} %>%
-    as_tibble() %>%
-    mutate_all(., as.character)
->>>>>>> parent of b5b5b3e (Update utils.R)
 }
 
 #' multicore pull from API

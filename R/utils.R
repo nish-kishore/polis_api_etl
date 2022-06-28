@@ -653,7 +653,7 @@ get_table_data <- function(url, p){
   p()
   
   response <- httr::GET(url)
-  response_data <- NULL
+  response_data <- as.data.frame(matrix(ncol=0,nrow=0))
   status <- response$status_code
     if(status == 200){
       response_data <- response %>%

@@ -707,7 +707,8 @@ create_url_array <- function(table_name,
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){
   status <- 0
-  while(status != 200){
+  i <- 1
+  while(status != 200 | i <= 3){
   p()
   
   response <- httr::GET(url)
@@ -721,6 +722,7 @@ get_table_data <- function(url, p){
         as_tibble() %>%
         mutate_all(., as.character)
     }
+  i <- i+1
   }
   return(response_data)
 }

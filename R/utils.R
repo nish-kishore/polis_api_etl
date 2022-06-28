@@ -1026,7 +1026,7 @@ archive_last_data <- function(table_name,
     #remove the current file from the main folder #Undid this as the current file is needed for append_and_save()
     # file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
   }
-  # }
+ 
 }
 
 

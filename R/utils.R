@@ -1456,4 +1456,32 @@ cleaning_transform_start_end_to_long <- function(input_dataframe,
              end_date >= active_time_period) 
   return(df2)
 }
+
+#Identify all obs with date vars out of order or with too long of gaps between date vars, for any number of date vars
+cleaning_multiple_dates_check <- function(input_dataframe,
+                                id_vars, # a vector of id variables
+                                ordered_dates, # an ordered vector of date variables
+                                max_days_between_dates){ #max days allowed between each variable and the next in ordered_dates
+  id_vars <- as.vector(id_vars)
   
+  for(i in 1:length(max_days_between_dates)){
+    assign(paste0("max_days_between_dates_",i,"_and_",i+1), max_days_between_dates[i])
+  }
+  
+  df1 <- input_dataframe %>%
+    select(all_of(id_vars), all_of(ordered_dates)) 
+  
+  
+  for(i in 1:length(max_days_between_dates)){
+    df1 <- df1 %>%
+      mutate(j = difftime(!!assign(paste0("date",i+1), sym(ordered_dates[i+1])), !!assign(paste0("date",i), sym(ordered_dates[i])), units="days")) %>%
+      mutate(k = ifelse(as.numeric(j) > max_days_between_dates[i] | as.numeric(j) < 0, 1, 0)) %>%
+      rename_at(ncol(.)-1, ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1])) %>%
+      rename_at(ncol(.), ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1],"_error"))
+  }
+  
+  df2 <- df1 %>%
+    filter_at(vars(contains("_error")), any_vars(. == 1))
+  return(df2)
+}  
+

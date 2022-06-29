@@ -1388,3 +1388,62 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
               paste0(snapshot_subfolder, "\\", i,".rds"))
   }
 }
+
+## Generalized cleaning functions that will be used within dataset-specific cleaning:
+
+cleaning_transform_start_end_to_long <- function(input_dataframe,
+                                                 id_vars,
+                                                 start_date_var,
+                                                 end_date_var, 
+                                                 unit = "years",
+                                                 start,
+                                                 end){
+  id_vars <- as.vector(id_vars)
+  # end_date_var1 <- enquo(end_date_var)
+  
+  #Get list of all time periods (in specified units) between start_date and end_date
+  if(unit == "days"){
+    time_periods <- seq(as.Date(start), as.Date(end), by="days")
+    start <- as.Date(start)
+    end <- as.Date(end)
+    }
+  if(unit == "months"){
+    time_periods <- format(seq(as.Date(start), as.Date(end), by="months"),"%Y-%b")
+    start <- format(as.Date(start), "%Y-%b")
+    end <- format(as.Date(end), "%Y-%b")
+    }
+  if(unit == "years"){
+    time_periods <- format(seq(as.Date(start), as.Date(end), by="years"), "%Y")
+    start <- format(as.Date(start), "%Y")
+    end <- format(as.Date(end), "%Y")
+    }
+  start_date_var <- as.character(substitute(start_date_var))
+  end_date_var <- as.character(substitute(end_date_var))
+  start_date_var1 <- sym(start_date_var)
+  end_date_var1 <- sym(end_date_var)
+  
+  df1 <- input_dataframe %>%
+    #transform start and end dates into selected units
+      mutate(start_date = case_when(unit == "years" ~ format(!!start_date_var1, "%Y"),
+                                    unit == "months" ~ format(!!start_date_var1, "%Y-%b"),
+                                    unit == "days" ~ format(!!start_date_var1, "%Y-%m-%d"),
+                                    TRUE ~ format(!!start_date_var1, "%Y-%m-%d")),
+             end_date = case_when(unit == "years" ~ format(!!end_date_var1, "%Y"),
+                                    unit == "months" ~ format(!!end_date_var1, "%Y-%b"),
+                                    unit == "days" ~ format(!!end_date_var1, "%Y-%m-%d"),
+                                    TRUE ~ format(!!end_date_var1, "%Y-%m-%d"))) %>%
+    mutate(start_date = ifelse(is.na(start_date), start, start_date),
+           end_date = ifelse(is.na(end_date), end, end_date)) %>%
+    #Select only the needed variables (join back to the full input_dataframe later)
+    select(all_of(id_vars), start_date, end_date) %>%
+    #deduplicate
+    unique() %>%
+    #create one row per obs per time period
+    merge(time_periods) %>%
+    rename(active_time_period = y) %>%
+    #restrict to time periods within range
+    filter(start_date <= active_time_period &
+           end_date >= active_time_period) 
+  return(df1)
+}
+  

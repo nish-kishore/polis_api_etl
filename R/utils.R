@@ -1399,7 +1399,11 @@ cleaning_transform_start_end_to_long <- function(input_dataframe,
                                                  start,
                                                  end){
   id_vars <- as.vector(id_vars)
-  # end_date_var1 <- enquo(end_date_var)
+  
+  df1 <- input_dataframe %>%
+    group_by_at(vars(c(id_vars))) %>%
+    slice(1) %>%
+    ungroup()
   
   #Get list of all time periods (in specified units) between start_date and end_date
   if(unit == "days"){
@@ -1422,7 +1426,7 @@ cleaning_transform_start_end_to_long <- function(input_dataframe,
   start_date_var1 <- sym(start_date_var)
   end_date_var1 <- sym(end_date_var)
   
-  df1 <- input_dataframe %>%
+  df2 <- df1 %>%
     #transform start and end dates into selected units
       mutate(start_date = case_when(unit == "years" ~ format(!!start_date_var1, "%Y"),
                                     unit == "months" ~ format(!!start_date_var1, "%Y-%b"),
@@ -1437,13 +1441,19 @@ cleaning_transform_start_end_to_long <- function(input_dataframe,
     #Select only the needed variables (join back to the full input_dataframe later)
     select(all_of(id_vars), start_date, end_date) %>%
     #deduplicate
+    ungroup() %>%
     unique() %>%
+    
     #create one row per obs per time period
     merge(time_periods) %>%
-    rename(active_time_period = y) %>%
+    mutate(active_time_period = case_when(unit == "years" ~ as.Date(paste0(as.character(y),"-01-01"), "%Y-%m-%d"),
+                                          unit == "months" ~ as.Date(paste0(as.character(y),"-01"), "%Y-%b-%d"),
+                                          unit == "days" ~ as.Date(as.character(y), "%Y-%m-%d"))) %>%
     #restrict to time periods within range
+    select(all_of(id_vars), active_time_period) %>%
+    left_join(input_dataframe, by=c(id_vars)) %>%
     filter(start_date <= active_time_period &
-           end_date >= active_time_period) 
-  return(df1)
+             end_date >= active_time_period) 
+  return(df2)
 }
   

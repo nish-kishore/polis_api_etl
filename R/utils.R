@@ -1479,9 +1479,33 @@ cleaning_multiple_dates_check <- function(input_dataframe,
       rename_at(ncol(.)-1, ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1])) %>%
       rename_at(ncol(.), ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1],"_error"))
   }
+  #check days between date 1 and 3 if 2 is missin, 2 and 5 if 3 and 4 are missing, etc.
+    #Note: this currently only checks the order, not the max days between
+  df2 <- input_dataframe %>%
+    select(all_of(id_vars), all_of(ordered_dates)) %>%
+    pivot_longer(-all_of(id_vars), names_to="date_var", values_to="date") %>%
+    group_by(across(id_vars)) %>%
+    mutate(row = paste0("date",row_number())) %>%
+    ungroup() %>%
+    select(-date_var) %>%
+    pivot_wider(names_from=row, values_from=date) 
   
-  df2 <- df1 %>%
+  for(i in 1:(ncol(df2)-length(id_vars)-1)) {
+    df2 <- df2 %>%
+      mutate(k = ifelse(sym(paste0("date",i+1)) < sym(paste0("date",i)), 1, 0)) %>%
+      rename_at(ncol(.), ~paste0("days_between_", i, "_and_", i+1,"_error"))
+  }
+  df2 <- df2 %>%
     filter_at(vars(contains("_error")), any_vars(. == 1))
-  return(df2)
+  df3 <- input_dataframe %>%
+    inner_join(df2, by=c(id_vars)) %>%
+    select(all_of(id_vars), all_of(ordered_dates)) %>%
+    mutate(any_date_order_error = 1)
+  
+  df4 <- df1 %>%
+    filter_at(vars(contains("_error")), any_vars(. == 1)) %>%
+    full_join(df3, by=c(id_vars, ordered_dates))
+    
+  return(df4)
 }  
 

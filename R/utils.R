@@ -1462,6 +1462,11 @@ cleaning_multiple_dates_check <- function(input_dataframe,
                                 id_vars, # a vector of id variables
                                 ordered_dates, # an ordered vector of date variables
                                 max_days_between_dates){ #max days allowed between each variable and the next in ordered_dates
+  
+  #convert all Posixct dates to date format
+  input_dataframe <- input_dataframe %>%
+    mutate_if(is.POSIXct, as.Date)
+  
   id_vars <- as.vector(id_vars)
   
   for(i in 1:length(max_days_between_dates)){
@@ -1492,7 +1497,9 @@ cleaning_multiple_dates_check <- function(input_dataframe,
   
   for(i in 1:(ncol(df2)-length(id_vars)-1)) {
     df2 <- df2 %>%
-      mutate(k = ifelse(sym(paste0("date",i+1)) < sym(paste0("date",i)), 1, 0)) %>%
+      rowwise() %>%
+      mutate(k = ifelse(!!sym(paste0("date",i+1)) < !!sym(paste0("date",i)), 1, 0)) %>%
+      ungroup() %>%
       rename_at(ncol(.), ~paste0("days_between_", i, "_and_", i+1,"_error"))
   }
   df2 <- df2 %>%
@@ -1504,7 +1511,7 @@ cleaning_multiple_dates_check <- function(input_dataframe,
   
   df4 <- df1 %>%
     filter_at(vars(contains("_error")), any_vars(. == 1)) %>%
-    full_join(df3, by=c(id_vars, ordered_dates))
+    full_join(df3, by=c(id_vars, ordered_dates)) 
     
   return(df4)
 }  

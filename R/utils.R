@@ -1508,7 +1508,7 @@ cleaning_multiple_dates_check <- function(input_dataframe,
         rename_at(ncol(.), ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1],"_error"))
     }
   }
-  #check days between date 1 and 3 if 2 is missin, 2 and 5 if 3 and 4 are missing, etc.
+  #check days between date 1 and 3 if 2 is missing, 2 and 5 if 3 and 4 are missing, etc.
     #Note: this currently only checks the order, not the max days between
   df2 <- input_dataframe %>%
     select(all_of(id_vars), all_of(ordered_dates)) %>%

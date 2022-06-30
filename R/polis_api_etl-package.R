@@ -13,6 +13,7 @@
 #' @import rvest
 #' @import XML
 #' @import stringi
+#' @import sf
 NULL
 
-pacman::p_load(skimr, yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, stringi, XML, rvest)
+pacman::p_load(skimr, yaml, tidyverse, lubridate, httr, jsonlite, progressr, future, furrr, RCurl, curl, utils, stringi, XML, rvest, sf)

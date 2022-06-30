@@ -1541,3 +1541,61 @@ cleaning_multiple_dates_check <- function(input_dataframe,
   return(df4)
 }  
 
+#Cleaning function to assign random coordinates to observation within specified shape
+cleaning_random_coordinates_stsample <- function(input_dataframe,
+                                                 input_shapefile,
+                                                 dataframe_shape_id,
+                                                 shapefile_shape_id,
+                                                 dataframe_id_vars){
+  
+  dataframe_id_vars <- as.vector(dataframe_id_vars)
+  input_dataframe <- input_dataframe %>%
+    mutate(shape_id = !!sym(dataframe_shape_id))
+  input_shapefile <- input_shapefile %>%
+    mutate(shape_id = !!sym(shapefile_shape_id))
+  
+  shapefile_df <- st_drop_geometry(input_shapefile) %>%
+    filter(!is.na(!!shapefile_shape_id))
+  
+  df1 <- anti_join(input_dataframe, 
+                   shapefile_df %>% select(shape_id),
+                   by=c("shape_id"))
+  
+  df2 <- inner_join(input_dataframe,
+                    input_shapefile %>% select(shape_id), 
+                    by=c("shape_id")) 
+
+  sf_use_s2(F)
+  point_list <- as.data.frame(matrix(nrow=0, ncol=0))
+  for(i in 1:nrow(df2)){
+  pt01 <- st_sf(st_sample(df2$SHAPE[i], 1, exact = TRUE))
+  colnames(pt01) <- "point"
+  pt02 <- st_drop_geometry(pt01) %>%
+    separate(point, into=c("lon", "lat"), sep = ",") %>%
+    mutate(lon=as.numeric(gsub("[^0-9.]", "", lon)),
+           lat=as.numeric(gsub("[^0-9.]", "", lat)))
+  point_list <- point_list %>% rbind(pt02)
+  }
+  sf_use_s2(T)
+  
+  df3 <- df2 %>%
+    select(-SHAPE) %>%
+    bind_cols(point_list) 
+
+  if(nrow(df1) > 0){
+    df4 <- st_as_sf(x = df3, 
+                    coords = c("lon", "lat"),
+                    crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
+           bind_rows(df1) %>%
+      select(-c("shape_id"))
+  }
+  if(nrow(df1) == 0){
+    df4 <- st_as_sf(x = df3, 
+                    coords = c("lon", "lat"),
+                    crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
+      select(-c("shape_id"))
+  }
+  return(df4)
+}
+
+

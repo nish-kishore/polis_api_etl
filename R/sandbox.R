@@ -25,7 +25,7 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 table_name = "EnvSample",
                 field_name = "LastUpdateDate",
                 id_vars = "Id",
-                download_size = 500)
+                download_size = 1000)
 
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
@@ -48,12 +48,16 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 id_vars = "Id",
                 download_size = 500)
 
+start <- Sys.time()
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                 table_name = "EnvSample",
-                field_name = "LastUpdateDate",
+                field_name = "None",
                 id_vars = "Id",
-                download_size = 10)
+                download_size = 1000)
+stop <- Sys.time()
+query_time <- difftime(stop, start)
+
 
 get_polis_table(table_name = "Lqas",
                 field_name = "Start",
@@ -72,6 +76,7 @@ get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
 
 test <- clean_polis_data(EnvSample)
 
+
 #Example of function to get list of misordered dates
 misordered_dates <- cleaning_multiple_dates_check(input_dataframe=clean_polis_data(EnvSample),
                                                   id_vars = "id",
@@ -88,4 +93,5 @@ envsample_with_pts <- cleaning_random_coordinates_stsample(input_dataframe = cle
                                                            dataframe_shape_id = "admin2guid",
                                                            shapefile_shape_id = "GUID",
                                                            dataframe_id_vars = "id")
+
 

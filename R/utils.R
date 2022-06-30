@@ -177,7 +177,19 @@ append_and_save <- function(query_output = query_output,
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
-    result2 <- httr::GET(my_url2)
+    
+    status_code <- "x"
+    i <- 1
+    while(status_code != "200" & i < 10){
+      result2 <- httr::GET(my_url2)
+      status_code <- as.character(result2$status_code)
+      i <- i+1
+      if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+      }
+    }
+    rm(status_code)
+    
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
 
@@ -204,7 +216,19 @@ append_and_save <- function(query_output = query_output,
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
-    result2 <- httr::GET(my_url2)
+    
+    status_code <- "x"
+    i <- 1
+    while(status_code != "200" & i < 10){
+      result2 <- httr::GET(my_url2)
+      status_code <- as.character(result2$status_code)
+      i <- i+1
+      if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+      }
+    }
+    rm(status_code)
+    
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
     
@@ -586,10 +610,18 @@ get_table_count <- function(table_name,
     httr::modify_url()
   }
   
-  while(status_code != 200){
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
   response <- httr::GET(my_url)
-  status_code <- response$status_code
+  status_code <- as.character(response$status_code)
+  i <- i+1
+  if(i == 10){
+    stop("Query halted. Repeated API call failure.")
   }
+  }
+  rm(status_code)
+  
   response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
@@ -646,7 +678,19 @@ create_url_array <- function(table_name,
 get_table_data <- function(url, p){
   p()
   
-  httr::GET(url) %>%
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
+    result <- httr::GET(url)
+    status_code <- as.character(result$status_code)
+    i <- i+1
+    if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+    }
+  }
+  rm(status_code)
+  
+  result %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
     {.$value} %>%
@@ -905,6 +949,7 @@ validate_token <- function(token = token){
                      "$inlinecount=allpages&$top=0",
                      '&token=',token) %>%
                   httr::modify_url()
+  
   result_test <- httr::GET(my_url_test)$status
   valid_token <- TRUE
   if(result_test != 200){
@@ -1193,10 +1238,13 @@ compare_final_to_archive <- function(table_name,
         file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
         file_dates <- c(file_dates, file_date)
       }
+      latest_file <- c()
+      if(length(file_dates)>0){
       latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
                          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
                          arrange(desc(create_date)) %>%
                          slice(1))$name
+      }
       change_summary <- NULL
       if(length(latest_file) > 0){
         #load latest_file

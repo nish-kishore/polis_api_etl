@@ -586,8 +586,10 @@ get_table_count <- function(table_name,
     httr::modify_url()
   }
   
+  while(status_code != 200){
   response <- httr::GET(my_url)
-
+  status_code <- response$status_code
+  }
   response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%

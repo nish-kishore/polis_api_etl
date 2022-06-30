@@ -1477,7 +1477,7 @@ cleaning_multiple_dates_check <- function(input_dataframe,
     }
     
   #check if max_days_between_dates is the right length, warning and don't use if not
-    if(length(max_days_between_dates) != (length(ordered_dates)-1)){
+    if(!is.null(max_days_between_dates) & length(max_days_between_dates) != (length(ordered_dates)-1)){
       max_days_between_dates <- NULL
       warning("Number of days listed in max_days_between_dates do not match number of gaps between dates in ordered_dates. Errors due to > max days between dates not assessed.")
     }
@@ -1514,6 +1514,7 @@ cleaning_multiple_dates_check <- function(input_dataframe,
     select(all_of(id_vars), all_of(ordered_dates)) %>%
     pivot_longer(-all_of(id_vars), names_to="date_var", values_to="date") %>%
     group_by(across(id_vars)) %>%
+    filter(!is.na(date)) %>%
     mutate(row = paste0("date",row_number())) %>%
     ungroup() %>%
     select(-date_var) %>%

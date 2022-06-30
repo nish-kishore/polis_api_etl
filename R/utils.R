@@ -1461,12 +1461,27 @@ cleaning_transform_start_end_to_long <- function(input_dataframe,
 cleaning_multiple_dates_check <- function(input_dataframe,
                                 id_vars, # a vector of id variables
                                 ordered_dates, # an ordered vector of date variables
-                                max_days_between_dates){ #max days allowed between each variable and the next in ordered_dates
+                                max_days_between_dates = NULL){ #max days allowed between each variable and the next in ordered_dates
+  
   
   #convert all Posixct dates to date format
   input_dataframe <- input_dataframe %>%
     mutate_if(is.POSIXct, as.Date)
   
+  #check if ordered_dates vars are all date class, stop if not
+    temp <- input_dataframe %>%
+      select(all_of(ordered_dates))
+    classes <- paste(lapply(temp, class), collapse=",")
+    if(str_count(classes, "Date") != length(ordered_dates)){
+      stop("Variables listed in 'ordered_dates' are not all Date or POSIXct class")
+    }
+    
+  #check if max_days_between_dates is the right length, warning and don't use if not
+    if(length(max_days_between_dates) != (length(ordered_dates)-1)){
+      max_days_between_dates <- NULL
+      warning("Number of days listed in max_days_between_dates do not match number of gaps between dates in ordered_dates. Errors due to > max days between dates not assessed.")
+    }
+    
   id_vars <- as.vector(id_vars)
   
   for(i in 1:length(max_days_between_dates)){
@@ -1477,12 +1492,21 @@ cleaning_multiple_dates_check <- function(input_dataframe,
     select(all_of(id_vars), all_of(ordered_dates)) 
   
   
-  for(i in 1:length(max_days_between_dates)){
+  for(i in 1:(length(ordered_dates)-1)){
+    if(!is.null(max_days_between_dates)){
     df1 <- df1 %>%
       mutate(j = difftime(!!assign(paste0("date",i+1), sym(ordered_dates[i+1])), !!assign(paste0("date",i), sym(ordered_dates[i])), units="days")) %>%
       mutate(k = ifelse(as.numeric(j) > max_days_between_dates[i] | as.numeric(j) < 0, 1, 0)) %>%
       rename_at(ncol(.)-1, ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1])) %>%
       rename_at(ncol(.), ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1],"_error"))
+    }
+    if(is.null(max_days_between_dates)){
+      df1 <- df1 %>%
+        mutate(j = difftime(!!assign(paste0("date",i+1), sym(ordered_dates[i+1])), !!assign(paste0("date",i), sym(ordered_dates[i])), units="days")) %>%
+        mutate(k = ifelse(as.numeric(j) < 0, 1, 0)) %>%
+        rename_at(ncol(.)-1, ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1])) %>%
+        rename_at(ncol(.), ~paste0("days_between_", ordered_dates[i], "_and_", ordered_dates[i+1],"_error"))
+    }
   }
   #check days between date 1 and 3 if 2 is missin, 2 and 5 if 3 and 4 are missing, etc.
     #Note: this currently only checks the order, not the max days between

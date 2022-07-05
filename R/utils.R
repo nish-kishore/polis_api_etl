@@ -506,7 +506,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   print("Pulling all variables:")
   query_start_time <- Sys.time()
-  query_output <- pb_mc_api_pull(urls)  
+  url_set_breaks <- c(seq(1, length(urls), by = 1), length(urls)+1)
+  query_output <- data.frame(matrix(nrow=0, ncol=0))
+  for(i in 1:(length(url_set_breaks)-1)){
+    url_set <- urls[url_set_breaks[i]:(url_set_breaks[i+1]-1)]
+    query_output_i <- pb_mc_api_pull(url_set)
+    query_output <- query_output %>%
+      bind_rows(query_output_i)
+    print(i)
+  }
+  # query_output <- pb_mc_api_pull(urls)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
@@ -738,8 +747,11 @@ create_url_array <- function(table_name,
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
                                 field_name = field_name)
-
+  
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
+  options(scipen=prior_scipen)
   
   return(urls)
 
@@ -1513,7 +1525,10 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
     {.$odata.count} %>%
     as.integer()
   # build URL array
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
+  options(scipen=prior_scipen)
   return(urls)
 }
 
@@ -1535,6 +1550,9 @@ create_url_array_id_method <- function(table_name,
                             id_vars,
                             field_name,
                             min_date = min_date){
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
+  
   get_ids_for_url_array(table_name, id_vars, field_name, min_date)
   id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
   id_list2 <- id_list %>% 
@@ -1592,7 +1610,8 @@ create_url_array_id_method <- function(table_name,
   }  
   #create list of seq first to last by 1000
     urls <- create_url_array_id_section(table_name, id_section_table)
-  return(urls)
+    options(scipen=prior_scipen)
+    return(urls)
 }
 
 check_if_id_exists <- function(table_name,

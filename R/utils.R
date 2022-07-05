@@ -785,19 +785,31 @@ get_table_data <- function(url, p){
     }
     i <- i+1
     if(i == 10){
-        stop("Query halted. Repeated API call failure.")
+        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))){
+          all_failed_urls <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+          all_failed_urls <- c(all_failed_urls, url)
+          }
+        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds")) == FALSE){
+          all_failed_urls <- url
+        }
+        write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+        result <- NULL
     }
     Sys.sleep(10)
   }
   rm(status_code)
   
+  if(is.null(result) == FALSE){
   response_data <- result %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
     {.$value} %>%
     as_tibble() %>%
     mutate_all(., as.character)
-
+  }
+  if(is.null(result) == TRUE){
+    response_data <- NULL
+  }
   return(response_data)
 }
 

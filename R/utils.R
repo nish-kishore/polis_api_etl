@@ -203,6 +203,7 @@ append_and_save <- function(query_output = query_output,
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
       }
+      Sys.sleep(10)
     }
     rm(status_code)
     
@@ -245,6 +246,7 @@ append_and_save <- function(query_output = query_output,
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
       }
+      Sys.sleep(10)
     }
     rm(status_code)
     
@@ -711,6 +713,7 @@ get_table_count <- function(table_name,
   if(i == 10){
     stop("Query halted. Repeated API call failure.")
   }
+  Sys.sleep(10)
   }
   rm(status_code)
   
@@ -784,6 +787,7 @@ get_table_data <- function(url, p){
     if(i == 10){
         stop("Query halted. Repeated API call failure.")
     }
+    Sys.sleep(10)
   }
   rm(status_code)
   
@@ -1774,6 +1778,7 @@ create_url_array_idvars <- function(table_name = table_name,
         if(i == 10){
           stop("Query halted. Repeated API call failure.")
         }
+        Sys.sleep(10)
       }
       rm(status_code)
     

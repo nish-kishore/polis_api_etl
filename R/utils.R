@@ -194,8 +194,11 @@ append_and_save <- function(query_output = query_output,
     status_code <- "x"
     i <- 1
     while(status_code != "200" & i < 10){
-      result2 <- httr::GET(my_url2)
+      result2 <- NULL
+      result2 <- httr::GET(my_url2, timeout(1))
+      if(is.null(result2) == FALSE){
       status_code <- as.character(result2$status_code)
+      }
       i <- i+1
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
@@ -233,8 +236,11 @@ append_and_save <- function(query_output = query_output,
     status_code <- "x"
     i <- 1
     while(status_code != "200" & i < 10){
-      result2 <- httr::GET(my_url2)
-      status_code <- as.character(result2$status_code)
+      result2 <- NULL
+      result2 <- httr::GET(my_url2, timeout(150))
+      if(is.null(result2) == FALSE){
+        status_code <- as.character(result2$status_code)
+      }
       i <- i+1
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
@@ -696,8 +702,11 @@ get_table_count <- function(table_name,
   status_code <- "x"
   i <- 1
   while(status_code != "200" & i < 10){
-  response <- httr::GET(my_url)
-  status_code <- as.character(response$status_code)
+  response <- NULL
+  response <- httr::GET(my_url, timeout(150))
+  if(is.null(response) == FALSE){
+    status_code <- as.character(response$status_code)
+  }
   i <- i+1
   if(i == 10){
     stop("Query halted. Repeated API call failure.")
@@ -766,8 +775,11 @@ get_table_data <- function(url, p){
   i <- 1
   while(status_code != "200" & i < 10){
     p()
-    result <- httr::GET(url)
+    result <- NULL
+    result <- httr::GET(url, timeout(150))
+    if(is.null(result) == FALSE){
     status_code <- as.character(result$status_code)
+    }
     i <- i+1
     if(i == 10){
         stop("Query halted. Repeated API call failure.")
@@ -1030,7 +1042,7 @@ validate_token <- function(token = token){
                      '&token=',token) %>%
                   httr::modify_url()
   
-  result_test <- as.character(httr::GET(my_url_test)$status)
+  result_test <- as.character(httr::GET(my_url_test)$status, timeout(150))
   valid_token <- TRUE
   if(result_test != "200"){
     valid_token <- FALSE
@@ -1517,7 +1529,7 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
                     "&$top=0") %>%
     httr::modify_url()
   
-  response <- httr::GET(my_url2)
+  response <- httr::GET(my_url2, timeout(150))
   
   table_size <- response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
@@ -1622,7 +1634,7 @@ check_if_id_exists <- function(table_name,
                         paste(id_vars, collapse=", "),
                         '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
-  status <- as.character(httr::GET(url)$status_code)
+  status <- as.character(httr::GET(url, timeout(150))$status_code)
   id_exists <- ifelse(status=="200", TRUE, FALSE)
   return(id_exists)
 }
@@ -1753,8 +1765,11 @@ create_url_array_idvars <- function(table_name = table_name,
       status_code <- "x"
       i <- 1
       while(status_code != "200" & i < 10){
-        response <- httr::GET(my_url2)
+        response <- NULL
+        response <- httr::GET(my_url2, timeout(150))
+        if(is.null(response) == FALSE){
         status_code <- as.character(response$status_code)
+        }
         i <- i+1
         if(i == 10){
           stop("Query halted. Repeated API call failure.")

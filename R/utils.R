@@ -167,9 +167,11 @@ append_and_save <- function(query_output = query_output,
   id_vars <- as.vector(id_vars)
   
   #remove records that are no longer in the POLIS table from query_output
+  if(nrow(full_idvars_output) > 0){
   query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = query_output,
                                            id_vars = id_vars)
+  }
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
   old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
@@ -188,7 +190,19 @@ append_and_save <- function(query_output = query_output,
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
-    result2 <- httr::GET(my_url2)
+    
+    status_code <- "x"
+    i <- 1
+    while(status_code != "200" & i < 10){
+      result2 <- httr::GET(my_url2)
+      status_code <- as.character(result2$status_code)
+      i <- i+1
+      if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+      }
+    }
+    rm(status_code)
+    
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
 
@@ -215,7 +229,19 @@ append_and_save <- function(query_output = query_output,
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
-    result2 <- httr::GET(my_url2)
+    
+    status_code <- "x"
+    i <- 1
+    while(status_code != "200" & i < 10){
+      result2 <- httr::GET(my_url2)
+      status_code <- as.character(result2$status_code)
+      i <- i+1
+      if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+      }
+    }
+    rm(status_code)
+    
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
     
@@ -462,14 +488,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #Create an API URL and use it to query POLIS
   if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
-     x$field_name == "None"){
+     x$field_name == "None" |
+     table_name %in% c("Virus", "Case")){
     urls <- create_url_array(table_name = table_name,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
   }
   if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-     x$field_name != "None"){
+     x$field_name != "None" &
+     !(table_name %in% c("Virus", "Case"))){
     print("Pulling ID variables:")
     urls <- create_url_array_id_method(table_name = table_name,
                                      field_name = x$field_name,
@@ -478,7 +506,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   print("Pulling all variables:")
   query_start_time <- Sys.time()
-  query_output <- pb_mc_api_pull(urls)  
+  url_set_breaks <- c(seq(1, length(urls), by = 1), length(urls)+1)
+  query_output <- data.frame(matrix(nrow=0, ncol=0))
+  for(i in 1:(length(url_set_breaks)-1)){
+    url_set <- urls[url_set_breaks[i]:(url_set_breaks[i+1]-1)]
+    query_output_i <- pb_mc_api_pull(url_set)
+    query_output <- query_output %>%
+      bind_rows(query_output_i)
+    print(i)
+  }
+  # query_output <- pb_mc_api_pull(urls)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
@@ -579,8 +616,12 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
-  full_idvars_output <- get_idvars_only(table_name = table_name,
+  full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+     !(table_name %in% c("Virus", "Case"))){
+    full_idvars_output <- get_idvars_only(table_name = table_name,
                                         id_vars = id_vars)
+  }
     
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
@@ -652,8 +693,18 @@ get_table_count <- function(table_name,
     httr::modify_url()
   }
   
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
   response <- httr::GET(my_url)
-
+  status_code <- as.character(response$status_code)
+  i <- i+1
+  if(i == 10){
+    stop("Query halted. Repeated API call failure.")
+  }
+  }
+  rm(status_code)
+  
   response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
@@ -696,8 +747,11 @@ create_url_array <- function(table_name,
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
                                 field_name = field_name)
-
+  
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
+  options(scipen=prior_scipen)
   
   return(urls)
 
@@ -708,24 +762,26 @@ create_url_array <- function(table_name,
 #' @param url string of a single url
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){
-  status <- 0
+  status_code <- "x"
   i <- 1
-  while(status != 200 | i <= 3){
-  p()
-  
-  response <- httr::GET(url)
-  response_data <- as.data.frame(matrix(ncol=0,nrow=0))
-  status <- response$status_code
-    if(status == 200){
-      response_data <- response %>%
-        httr::content(type='text',encoding = 'UTF-8') %>%
-        jsonlite::fromJSON() %>%
-        {.$value} %>%
-        as_tibble() %>%
-        mutate_all(., as.character)
+  while(status_code != "200" & i < 10){
+    p()
+    result <- httr::GET(url)
+    status_code <- as.character(result$status_code)
+    i <- i+1
+    if(i == 10){
+        stop("Query halted. Repeated API call failure.")
     }
-  i <- i+1
   }
+  rm(status_code)
+  
+  response_data <- result %>%
+    httr::content(type='text',encoding = 'UTF-8') %>%
+    jsonlite::fromJSON() %>%
+    {.$value} %>%
+    as_tibble() %>%
+    mutate_all(., as.character)
+
   return(response_data)
 }
 
@@ -973,9 +1029,10 @@ validate_token <- function(token = token){
                      "$inlinecount=allpages&$top=0",
                      '&token=',token) %>%
                   httr::modify_url()
-  result_test <- httr::GET(my_url_test)$status
+  
+  result_test <- as.character(httr::GET(my_url_test)$status)
   valid_token <- TRUE
-  if(result_test != 200){
+  if(result_test != "200"){
     valid_token <- FALSE
   }
   return(valid_token)
@@ -1251,70 +1308,67 @@ compare_final_to_archive <- function(table_name,
     archive_subfolder <- paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)
     
     #for each item in subfolder_list, get all file names then subset to most recent
-    subfolder_files <- list.files(paste0(archive_subfolder))
-    file_dates <- c()
-    for(j in subfolder_files){
-      file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
-      file_dates <- c(file_dates, file_date)
-    }
-    latest_file <- c()
-    if(length(file_dates) > 0){
-    latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
-                      mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
-                      arrange(desc(create_date)) %>%
-                      slice(1))$name
-    }
-    change_summary <- NULL
-    if(length(latest_file) > 0){
-      #load latest_file
-      latest_file <- readRDS(paste0(archive_subfolder, "\\", latest_file))
-      
-      #get metadata for latest file and new_file
-      new_file_metadata <- get_polis_metadata(query_output = new_file,
-                                              table_name = table_name,
-                                              categorical_max = categorical_max)
-      old_file_metadata <- get_polis_metadata(query_output = latest_file,
-                                              table_name = table_name,
-                                              categorical_max = categorical_max)
-      
-      change_summary <- metadata_comparison(new_file_metadata, old_file_metadata)[2:5]
-      
-      #count obs added to new_file and get set
-      in_new_not_old <- new_file %>%
-        anti_join(latest_file, by=as.vector(id_vars))
-      
-      #count obs removed from old_file and get set
-      in_old_not_new <- latest_file %>%
-        anti_join(new_file, by=as.vector(id_vars))
-      
-      #count obs modified in new file compared to old and get set
-      in_new_and_old_but_modified <- new_file %>%
-        ungroup() %>%
-        inner_join(latest_file %>% ungroup(), by=as.vector(id_vars)) %>%
-        #restrict to cols in new and old
-        select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
-        #wide_to_long
-        pivot_longer(cols=-id_vars) %>%
-        mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
-        mutate(name = str_sub(name, 1, -3)) %>%
-        #long_to_wide
-        pivot_wider(names_from=source, values_from=value, values_fn=list) %>%
-        mutate(new = paste(new, collapse=", "),
-               old = paste(old, collapse=", ")) %>%
-        filter(new != old)
-      
-      #summary counts
-      n_added <- nrow(in_new_not_old)
-      n_edited <- nrow(in_new_and_old_but_modified %>%
-                         select(id_vars) %>%
-                         unique())
-      n_deleted <- nrow(in_old_not_new)
-      obs_change <- c(n_added = n_added,
-                      n_edited = n_edited, 
-                      n_deleted = n_deleted)
-      
-      #add summary to change_summary along with datasets
-      change_summary <- append(change_summary, 
+      subfolder_files <- list.files(paste0(archive_subfolder))
+      file_dates <- c()
+      for(j in subfolder_files){
+        file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
+        file_dates <- c(file_dates, file_date)
+      }
+      latest_file <- c()
+      if(length(file_dates)>0){
+      latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+                         mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+                         arrange(desc(create_date)) %>%
+                         slice(1))$name
+      }
+      change_summary <- NULL
+      if(length(latest_file) > 0){
+        #load latest_file
+        latest_file <- readRDS(paste0(archive_subfolder, "\\", latest_file))
+  
+        #get metadata for latest file and new_file
+        new_file_metadata <- get_polis_metadata(query_output = new_file,
+                           table_name = table_name,
+                           categorical_max = categorical_max)
+        old_file_metadata <- get_polis_metadata(query_output = latest_file,
+                                                table_name = table_name,
+                                                categorical_max = categorical_max)
+  
+        change_summary <- metadata_comparison(new_file_metadata, old_file_metadata)[2:5]
+
+        #count obs added to new_file and get set
+        in_new_not_old <- new_file %>%
+         anti_join(latest_file, by=as.vector(id_vars))
+
+        #count obs removed from old_file and get set
+        in_old_not_new <- latest_file %>%
+         anti_join(new_file, by=as.vector(id_vars))
+
+        #count obs modified in new file compared to old and get set
+          in_new_and_old_but_modified <- new_file %>%
+            inner_join(latest_file, by=as.vector(id_vars)) %>%
+            #restrict to cols in new and old
+            select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
+            #wide_to_long
+            pivot_longer(cols=-id_vars) %>%
+            mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
+            mutate(name = str_sub(name, 1, -3)) %>%
+            #long_to_wide
+            pivot_wider(names_from=source, values_from=value) %>%
+            filter(new != old)
+        
+        #summary counts
+          n_added <- nrow(in_new_not_old)
+          n_edited <- nrow(in_new_and_old_but_modified %>%
+                        select(id_vars) %>%
+                        unique())
+          n_deleted <- nrow(in_old_not_new)
+          obs_change <- c(n_added = n_added,
+                          n_edited = n_edited, 
+                          n_deleted = n_deleted)
+          
+        #add summary to change_summary along with datasets
+        change_summary <- append(change_summary, 
                                list(obs_change = obs_change, 
                                     obs_added = in_new_not_old,
                                     obs_edited = in_new_and_old_but_modified,
@@ -1471,7 +1525,10 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
     {.$odata.count} %>%
     as.integer()
   # build URL array
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
   urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
+  options(scipen=prior_scipen)
   return(urls)
 }
 
@@ -1493,6 +1550,9 @@ create_url_array_id_method <- function(table_name,
                             id_vars,
                             field_name,
                             min_date = min_date){
+  prior_scipen <- getOption("scipen")
+  options(scipen = 999)
+  
   get_ids_for_url_array(table_name, id_vars, field_name, min_date)
   id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
   id_list2 <- id_list %>% 
@@ -1550,7 +1610,8 @@ create_url_array_id_method <- function(table_name,
   }  
   #create list of seq first to last by 1000
     urls <- create_url_array_id_section(table_name, id_section_table)
-  return(urls)
+    options(scipen=prior_scipen)
+    return(urls)
 }
 
 check_if_id_exists <- function(table_name,
@@ -1689,7 +1750,17 @@ create_url_array_idvars <- function(table_name = table_name,
                          "&$top=0") %>%
           httr::modify_url()
     
-     response <- httr::GET(my_url2)
+      status_code <- "x"
+      i <- 1
+      while(status_code != "200" & i < 10){
+        response <- httr::GET(my_url2)
+        status_code <- as.character(response$status_code)
+        i <- i+1
+        if(i == 10){
+          stop("Query halted. Repeated API call failure.")
+        }
+      }
+      rm(status_code)
     
      table_size <- response %>%
                     httr::content(type='text',encoding = 'UTF-8') %>%
@@ -1704,6 +1775,7 @@ create_url_array_idvars <- function(table_name = table_name,
 get_idvars_only <- function(table_name,
                             id_vars){
   urls <- create_url_array_idvars(table_name, id_vars)
+  print("Checking for deleted Ids in the full table:")
   query_start_time <- Sys.time()
   query_output <- pb_mc_api_pull(urls)  
   query_stop_time <- Sys.time()
@@ -1783,7 +1855,9 @@ compare_final_to_archive <- function(table_name,
           mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
           mutate(name = str_sub(name, 1, -3)) %>%
           #long_to_wide
-          pivot_wider(names_from=source, values_from=value) %>%
+          pivot_wider(names_from=source, values_from=value, values_fn = list) %>%
+          mutate(new = paste(new, collapse=","),
+                 old = paste(old, collapse=",")) %>%
           filter(new != old)
       
       #summary counts

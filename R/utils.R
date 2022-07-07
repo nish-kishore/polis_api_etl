@@ -194,12 +194,16 @@ append_and_save <- function(query_output = query_output,
     status_code <- "x"
     i <- 1
     while(status_code != "200" & i < 10){
-      result2 <- httr::GET(my_url2)
+      result2 <- NULL
+      result2 <- httr::GET(my_url2, timeout(1))
+      if(is.null(result2) == FALSE){
       status_code <- as.character(result2$status_code)
+      }
       i <- i+1
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
       }
+      Sys.sleep(10)
     }
     rm(status_code)
     
@@ -233,12 +237,16 @@ append_and_save <- function(query_output = query_output,
     status_code <- "x"
     i <- 1
     while(status_code != "200" & i < 10){
-      result2 <- httr::GET(my_url2)
-      status_code <- as.character(result2$status_code)
+      result2 <- NULL
+      result2 <- httr::GET(my_url2, timeout(150))
+      if(is.null(result2) == FALSE){
+        status_code <- as.character(result2$status_code)
+      }
       i <- i+1
       if(i == 10){
         stop("Query halted. Repeated API call failure.")
       }
+      Sys.sleep(10)
     }
     rm(status_code)
     
@@ -506,16 +514,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   print("Pulling all variables:")
   query_start_time <- Sys.time()
-  url_set_breaks <- c(seq(1, length(urls), by = 1), length(urls)+1)
+  # url_set_breaks <- c(seq(1, length(urls), by = 1), length(urls)+1)
   query_output <- data.frame(matrix(nrow=0, ncol=0))
-  for(i in 1:(length(url_set_breaks)-1)){
-    url_set <- urls[url_set_breaks[i]:(url_set_breaks[i+1]-1)]
-    query_output_i <- pb_mc_api_pull(url_set)
-    query_output <- query_output %>%
-      bind_rows(query_output_i)
-    print(i)
-  }
-  # query_output <- pb_mc_api_pull(urls)
+  # for(i in 1:(length(url_set_breaks)-1)){
+  #   url_set <- urls[url_set_breaks[i]:(url_set_breaks[i+1]-1)]
+  #   query_output_i <- pb_mc_api_pull(url_set)
+  #   query_output <- query_output %>%
+  #     bind_rows(query_output_i)
+  #   print(i)
+  # }
+  query_output <- pb_mc_api_pull(urls)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
@@ -617,11 +625,11 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-     !(table_name %in% c("Virus", "Case"))){
-    full_idvars_output <- get_idvars_only(table_name = table_name,
-                                        id_vars = id_vars)
-  }
+  # if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+  #    !(table_name %in% c("Virus", "Case"))){
+  #   full_idvars_output <- get_idvars_only(table_name = table_name,
+  #                                       id_vars = id_vars)
+  # }
     
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
@@ -696,12 +704,16 @@ get_table_count <- function(table_name,
   status_code <- "x"
   i <- 1
   while(status_code != "200" & i < 10){
-  response <- httr::GET(my_url)
-  status_code <- as.character(response$status_code)
+  response <- NULL
+  response <- httr::GET(my_url, timeout(150))
+  if(is.null(response) == FALSE){
+    status_code <- as.character(response$status_code)
+  }
   i <- i+1
   if(i == 10){
     stop("Query halted. Repeated API call failure.")
   }
+  Sys.sleep(10)
   }
   rm(status_code)
   
@@ -766,22 +778,38 @@ get_table_data <- function(url, p){
   i <- 1
   while(status_code != "200" & i < 10){
     p()
-    result <- httr::GET(url)
+    result <- NULL
+    result <- httr::GET(url, timeout(150))
+    if(is.null(result) == FALSE){
     status_code <- as.character(result$status_code)
+    }
     i <- i+1
     if(i == 10){
-        stop("Query halted. Repeated API call failure.")
+        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))){
+          all_failed_urls <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+          all_failed_urls <- c(all_failed_urls, url)
+          }
+        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds")) == FALSE){
+          all_failed_urls <- url
+        }
+        write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+        result <- NULL
     }
+    Sys.sleep(10)
   }
   rm(status_code)
   
+  if(is.null(result) == FALSE){
   response_data <- result %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
     jsonlite::fromJSON() %>%
     {.$value} %>%
     as_tibble() %>%
     mutate_all(., as.character)
-
+  }
+  if(is.null(result) == TRUE){
+    response_data <- NULL
+  }
   return(response_data)
 }
 
@@ -813,40 +841,40 @@ load_defaults <- function(){
     c(table_name_descriptive = "Case", table_name = "Case", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Environmental Sample", table_name = "EnvSample", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Geography", table_name = "Geography", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "Indicator('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP cases", table_name = "Indicator('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "Indicator('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "Indicator('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "Indicator('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "Indicator('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "Indicator('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "Indicator('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "Indicator('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "Indicator('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "Indicator('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "Indicator('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "Indicator('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "Indicator('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "Indicator('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "Indicator('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "Indicator('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "Indicator('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "Indicator('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "Indicator('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "Indicator('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "Indicator('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "Indicator('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "Indicator('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "Indicator('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "Indicator('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "Indicator('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP cases", table_name = "IndicatorValue('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "IndicatorValue('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "IndicatorValue('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "IndicatorValue('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "IndicatorValue('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "IndicatorValue('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "IndicatorValue('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "IndicatorValue('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "IndicatorValue('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "IndicatorValue('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "IndicatorValue('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "IndicatorValue('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "IndicatorValue('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "IndicatorValue('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "IndicatorValue('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "IndicatorValue('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "IndicatorValue('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "IndicatorValue('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "IndicatorValue('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "IndicatorValue('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "IndicatorValue('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "IndicatorValue('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "IndicatorValue('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
     c(table_name_descriptive = "Lab Specimen", table_name = "LabSpecimen", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Population", table_name = "Population", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ActivityCategories", table_name = "RefData('ActivityCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityDeletionReason", table_name = "RefData('ActivityDeletionReason')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: ActivityDeletionReason", table_name = "RefData('ActivityDeletionReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ActivityPhases", table_name = "RefData('ActivityPhases')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ActivityPriorities", table_name = "RefData('ActivityPriorities')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ActivityStatuses", table_name = "RefData('ActivityStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -882,7 +910,7 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: Genders", table_name = "RefData('Genders')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Genotypes", table_name = "RefData('Genotypes')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Geolevels", table_name = "RefData('Geolevels')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed because API documentation states there is no data for this table
+    c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed because API documentation states there is no data for this table
     c(table_name_descriptive = "Reference Data: IndependentMonitoringReasons", table_name = "RefData('IndependentMonitoringReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: IndependentMonitoringSources", table_name = "RefData('IndependentMonitoringSources')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: IndicatorCategories", table_name = "RefData('IndicatorCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -898,10 +926,10 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: PartialInclusionReason", table_name = "RefData('PartialInclusionReason')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: PopulationSources", table_name = "RefData('PopulationSources')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: PosNeg", table_name = "RefData('PosNeg')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: PreviousNumberOfDoses", table_name = "RefData('PreviousNumberOfDoses')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: ProgrammeAreas", table_name = "RefData('ProgrammeAreas')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: ReasonMissed", table_name = "RefData('ReasonMissed')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: ReasonVaccineRefused", table_name = "RefData('ReasonVaccineRefused')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: PreviousNumberOfDoses", table_name = "RefData('PreviousNumberOfDoses')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: ProgrammeAreas", table_name = "RefData('ProgrammeAreas')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: ReasonMissed", table_name = "RefData('ReasonMissed')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: ReasonVaccineRefused", table_name = "RefData('ReasonVaccineRefused')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: Reports", table_name = "RefData('Reports')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ResultsElisa", table_name = "RefData('ResultsElisa')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: ResultsPCR", table_name = "RefData('ResultsPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
@@ -916,16 +944,28 @@ load_defaults <- function(){
     c(table_name_descriptive = "Reference Data: StoolCondition", table_name = "RefData('StoolCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: SurveillanceType", table_name = "RefData('SurveillanceType')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: UpdateType", table_name = "RefData('UpdateType')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: Vdpv2Clusters", table_name = "RefData('Vdpv2Clusters')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for Vdpv2Clusters reference data'
+    c(table_name_descriptive = "Reference Data: Vdpv2Clusters", table_name = "RefData('Vdpv2Clusters')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for Vdpv2Clusters reference data'
     c(table_name_descriptive = "Reference Data: VdpvClassifications", table_name = "RefData('VdpvClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
-    # c(table_name_descriptive = "Reference Data: VdpvSources", table_name = "RefData('VdpvSources')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for VdpvSources reference data'
+    c(table_name_descriptive = "Reference Data: VdpvSources", table_name = "RefData('VdpvSources')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for VdpvSources reference data'
     c(table_name_descriptive = "Reference Data: VirusTypes", table_name = "RefData('VirusTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: VirusWildType", table_name = "RefData('VirusWildType')", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Data: VirusWildType", table_name = "RefData('VirusWildTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Reference Data: YesNo", table_name = "RefData('YesNo')", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Sub Activity", table_name = "SubActivity", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Synonym", table_name = "Synonym", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Virus", table_name = "Virus", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000)
-  ))
+    c(table_name_descriptive = "Virus", table_name = "Virus", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Historized Geoplace Names", table_name = "HistorizedGeoplaceNames", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Historized Synonym", table_name = "HistorizedSynonym", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "IM LQAS Last Two Rounds", table_name = "ImLqasLastTwoRounds", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Enviro Sample Sites", table_name = "EnviroSampleSites", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "IM LQAS Since 3 Years Done Planned SIAs", table_name = "ImLqasSince3YearsDonePlannedSIAs", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "RefCluster", table_name = "RefCluster", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Reference Age Group Data", table_name = "RefAgeGroupData('AgeGroups')", field_name = "None", id_vars ="None", download_size = 1000),
+    # c(table_name_descriptive = "PONS Store GR Environmental Samples", table_name = "PonsStoreGREnvironmentalSamples", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "PONS Store GR Cases", table_name = "PonsStoreGRCases", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Outbreak SIAs", table_name = "OutbreakSias", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "OprSopTracker", table_name = "OprSopTracker", field_name = "None", id_vars ="Id", download_size = 1000),
+    c(table_name_descriptive = "Independent Monitoring", table_name = "Im", field_name = "None", id_vars ="Id", download_size = 1000)
+    ))
   return(defaults)
 }
 
@@ -994,8 +1034,11 @@ get_polis_data <- function(folder = NULL,
   
   #Get default POLIS table names, field names, and download sizes
   if(dev == TRUE){
-  defaults <- load_defaults() %>%
-    filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+  # defaults <- load_defaults() %>%
+  #   filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+    defaults <- load_defaults() %>%
+      filter(!grepl("RefData", table_name) & !grepl("IndicatorValue", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+    
   }
   if(dev == FALSE){
     defaults <- load_defaults()
@@ -1030,7 +1073,7 @@ validate_token <- function(token = token){
                      '&token=',token) %>%
                   httr::modify_url()
   
-  result_test <- as.character(httr::GET(my_url_test)$status)
+  result_test <- as.character(httr::GET(my_url_test)$status, timeout(150))
   valid_token <- TRUE
   if(result_test != "200"){
     valid_token <- FALSE
@@ -1517,7 +1560,7 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
                     "&$top=0") %>%
     httr::modify_url()
   
-  response <- httr::GET(my_url2)
+  response <- httr::GET(my_url2, timeout(150))
   
   table_size <- response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
@@ -1622,7 +1665,7 @@ check_if_id_exists <- function(table_name,
                         paste(id_vars, collapse=", "),
                         '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
-  status <- as.character(httr::GET(url)$status_code)
+  status <- as.character(httr::GET(url, timeout(150))$status_code)
   id_exists <- ifelse(status=="200", TRUE, FALSE)
   return(id_exists)
 }
@@ -1753,12 +1796,16 @@ create_url_array_idvars <- function(table_name = table_name,
       status_code <- "x"
       i <- 1
       while(status_code != "200" & i < 10){
-        response <- httr::GET(my_url2)
+        response <- NULL
+        response <- httr::GET(my_url2, timeout(150))
+        if(is.null(response) == FALSE){
         status_code <- as.character(response$status_code)
+        }
         i <- i+1
         if(i == 10){
           stop("Query halted. Repeated API call failure.")
         }
+        Sys.sleep(10)
       }
       rm(status_code)
     

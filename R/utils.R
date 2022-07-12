@@ -398,9 +398,10 @@ metadata_comparison <- function(new_table_metadata,
 
     #Create an indicator that is TRUE if there has been a change in table structure or content that requires re-pulling of the table
     re_pull_polis_indicator <- FALSE
-    if(nrow(new_response) != 0 |
+    if(
+      # nrow(new_response) != 0 |
        nrow(class_changed_vars) != 0 |
-       length(lost_vars) != 0 |
+       # length(lost_vars) != 0 |
        length(new_vars) != 0){
       re_pull_polis_indicator <- TRUE
       }

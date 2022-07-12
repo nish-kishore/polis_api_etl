@@ -1552,14 +1552,8 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
                    '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
   # Get table size
-    my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
-                    paste0(table_name, "?"),
-                    "$inlinecount=allpages",
-                    '&token=',load_specs()$polis$token,
-                    "&$top=0") %>%
-    httr::modify_url()
   
-  response <- httr::GET(my_url2, timeout(150))
+  response <- httr::GET(my_url, timeout(150))
   
   table_size <- response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%

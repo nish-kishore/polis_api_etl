@@ -498,16 +498,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #Create an API URL and use it to query POLIS
   if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
-     x$field_name == "None" |
-     table_name %in% c("Virus", "Case")){
+     x$field_name == "None"){
     urls <- create_url_array(table_name = table_name,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
   }
   if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-     x$field_name != "None" &
-     !(table_name %in% c("Virus", "Case"))){
+     x$field_name != "None"){
     print("Pulling ID variables:")
     urls <- create_url_array_id_method(table_name = table_name,
                                      field_name = x$field_name,
@@ -585,16 +583,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     
     #Create an API URL and use it to query POLIS
     if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
-       x$field_name == "None" |
-       table_name %in% c("Virus", "Case")){
+       x$field_name == "None"){
       urls <- create_url_array(table_name = table_name,
                                field_name = x$field_name,
                                min_date = x$latest_date,
                                download_size = download_size)
     }
     if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-       x$field_name != "None" &
-       !(table_name %in% c("Virus", "Case"))){
+       x$field_name != "None"){
       urls <- create_url_array_id_method(table_name = table_name,
                                          field_name = x$field_name,
                                          min_date = x$latest_date,
@@ -627,8 +623,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-     !(table_name %in% c("Virus", "Case"))){
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE){
     full_idvars_output <- get_idvars_only(table_name = table_name,
                                         id_vars = id_vars)
   }

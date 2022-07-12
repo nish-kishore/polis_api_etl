@@ -179,10 +179,12 @@ append_and_save <- function(query_output = query_output,
       #remove records that are in new file
       anti_join(query_output, by=id_vars) 
   #remove records that are no longer in the POLIS table from old_polis
+  if(nrow(full_idvars_output) > 0){
   old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
                                            new_complete_file = old_polis,
                                            id_vars = id_vars)
-        
+  }
+  
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
     my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
@@ -625,11 +627,11 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
-  # if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
-  #    !(table_name %in% c("Virus", "Case"))){
-  #   full_idvars_output <- get_idvars_only(table_name = table_name,
-  #                                       id_vars = id_vars)
-  # }
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+     !(table_name %in% c("Virus", "Case"))){
+    full_idvars_output <- get_idvars_only(table_name = table_name,
+                                        id_vars = id_vars)
+  }
     
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,

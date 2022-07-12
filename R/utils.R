@@ -459,7 +459,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             field_name = NULL,
                             id_vars = NULL,
                             download_size = NULL,
-                            table_name_descriptive = NULL){
+                            table_name_descriptive = NULL,
+                            check_for_deleted_rows = FALSE){
   
   #Get user input for which table to pull if not specified
   if(is.null(table_name) | is.null(field_name) | is.null(id_vars) | is.null(download_size)){
@@ -623,7 +624,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE){
+  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE & check_for_deleted_rows == TRUE){
     full_idvars_output <- get_idvars_only(table_name = table_name,
                                         id_vars = id_vars)
   }
@@ -997,7 +998,8 @@ prompt_user_input <- function(){
 get_polis_data <- function(folder = NULL,
                            token = "",
                            verbose=TRUE,
-                           dev = FALSE){
+                           dev = FALSE,
+                           check_for_deleted_rows = FALSE){
   
 
   #If folder location and token not provided, prompt user for input:

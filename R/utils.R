@@ -793,7 +793,9 @@ get_table_data <- function(url, p){
         write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
         result <- NULL
     }
-    Sys.sleep(10)
+    if(status_code != "200"){
+      Sys.sleep(10)
+    }
   }
   rm(status_code)
   

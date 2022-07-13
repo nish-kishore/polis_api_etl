@@ -534,7 +534,17 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #     bind_rows(query_output_i)
   #   print(i)
   # }
-  query_output <- pb_mc_api_pull(urls)
+  query_output_list <- pb_mc_api_pull(urls)
+  query_output <- query_output_list[[1]]
+  if(is.null(query_output)){
+    query_output <- data.frame(matrix(nrow=0, ncol=0))
+  }
+  failed_urls <- query_output_list[[2]]
+  query_output <- handle_failed_urls(failed_urls,
+                                     paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"),
+                                     query_output,
+                                     retry = TRUE,
+                                     save = TRUE)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
@@ -609,7 +619,17 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     }
 
     query_start_time <- Sys.time()
-    query_output <- pb_mc_api_pull(urls)
+    query_output_list <- pb_mc_api_pull(urls)
+    query_output <- query_output_list[[1]]
+    if(is.null(query_output)){
+      query_output <- data.frame(matrix(nrow=0, ncol=0))
+    }
+    failed_urls <- query_output_list[[2]]
+    query_output <- handle_failed_urls(failed_urls,
+                                       paste0(load_specs()$polis_data_folder, "/", table_name,"_repull_failed_urls.rds"),
+                                       query_output,
+                                       retry = TRUE,
+                                       save = TRUE)
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
 
@@ -781,7 +801,7 @@ create_url_array <- function(table_name,
 #' get table data for a single url request
 #' @param url string of a single url
 #' @param p used as iterator in multicore processing
-get_table_data <- function(url, p){
+get_table_data <- function(url, p){tryCatch({
   status_code <- "x"
   i <- 1
   while(status_code != "200" & i < 10){
@@ -793,14 +813,14 @@ get_table_data <- function(url, p){
     }
     i <- i+1
     if(i == 10){
-        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))){
-          all_failed_urls <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
-          all_failed_urls <- c(all_failed_urls, url)
-          }
-        if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds")) == FALSE){
-          all_failed_urls <- url
-        }
-        write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+        # if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))){
+        #   all_failed_urls <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
+        #   all_failed_urls <- c(all_failed_urls, url)
+        #   }
+        # if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds")) == FALSE){
+        #   all_failed_urls <- url
+        # }
+        # write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
         result <- NULL
     }
     if(status_code != "200"){
@@ -820,16 +840,20 @@ get_table_data <- function(url, p){
   if(is.null(result) == TRUE){
     response_data <- NULL
   }
+  response_data <- tibble(url = c(url), data = list(response_data))
   return(response_data)
+}, error=function(e){
+  response_data <- list(url = c(url), data = NULL)
+  return(response_data)
+})
 }
-
+  
 #' multicore pull from API
 #' @param urls array of URL strings
 mc_api_pull <- function(urls){
   p <- progressor(steps = length(urls))
-
   future_map(urls,get_table_data, p = p) %>%
-    bind_rows()
+    rbind()
 }
 
 #' wrapper around multicore pull to produce progress bars
@@ -841,6 +865,21 @@ pb_mc_api_pull <- function(urls){
   with_progress({
     result <- mc_api_pull(urls)
   })
+  failed_urls <- c()
+  for(i in 1:length(result)){
+    data <- result[[i]]$data[[1]]
+    if(i == 1){
+    result_df <- data
+    }
+    if(i != 1){
+      result_df <- result_df %>%
+        bind_rows(data)
+    }
+    if(is.null(data)){
+      failed_urls <- c(failed_urls, result[[i]]$url[1])
+    }
+  }
+  result <- list(result_df, failed_urls)
   return(result)
   stopCluster(n_cores)
 }
@@ -1543,7 +1582,14 @@ get_ids_for_url_array <- function(table_name,
                                   field_name,
                                   min_date = min_date){
   urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
-  id_list <- pb_mc_api_pull(urls)
+  query_output_list <- pb_mc_api_pull(urls)
+  id_list <- query_output_list[[1]]
+  id_list_failed_urls <- query_output_list[[2]]
+  id_list <- handle_failed_urls(id_list_failed_urls,
+                                     paste0(load_specs()$polis_data_folder, "/", table_name,"_id_list_failed_urls.rds"),
+                                     id_list,
+                                     retry = TRUE,
+                                     save = TRUE)
   write_rds(id_list, paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
 }
 
@@ -1693,7 +1739,17 @@ get_idvars_only <- function(table_name,
   urls <- create_url_array_idvars(table_name, id_vars)
   print("Checking for deleted Ids in the full table:")
   query_start_time <- Sys.time()
-  query_output <- pb_mc_api_pull(urls)  
+  query_output_list <- pb_mc_api_pull(urls)
+  query_output <- query_output_list[[1]]
+  if(is.null(query_output)){
+    query_output <- data.frame(matrix(nrow=0, ncol=0))
+  }
+  failed_urls <- query_output_list[[2]]
+  query_output <- handle_failed_urls(failed_urls,
+                                paste0(load_specs()$polis_data_folder, "/", table_name,"_full_id_set_failed_urls.rds"),
+                                query_output,
+                                retry = TRUE,
+                                save = TRUE)
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
@@ -1941,4 +1997,27 @@ print_latest_change_log_summary <- function(){
         obs_change_combined
       } else {print("No observation additions/edits/deletions were found in any table since last download.")}
     }
+}
+
+handle_failed_urls <- function(failed_urls,
+                               failed_url_filename,
+                               query_output, 
+                               retry = TRUE, 
+                               save = TRUE){
+  if(length(failed_urls) > 0){
+    if(retry == TRUE){
+      retry_query_output_list <- pb_mc_api_pull(urls)
+      retry_query_output <- retry_query_output_list[[1]]
+      if(is.null(retry_query_output)){
+        retry_query_output <- data.frame(matrix(nrow=0, ncol=0))
+      }
+      failed_urls <- retry_query_output_list[[2]]
+      query_output <- query_output %>% 
+        bind_rows(retry_query_output)
+    }
+    if(save == TRUE){
+      write_rds(failed_urls, failed_url_filename)
+    }
+  }
+  return(query_output)
 }

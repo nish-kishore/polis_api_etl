@@ -508,14 +508,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   
   #Create an API URL and use it to query POLIS
-  if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
+  if(check_if_id_exists(table_name, id_vars) == FALSE |
      x$field_name == "None"){
     urls <- create_url_array(table_name = table_name,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
   }
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+  if(check_if_id_exists(table_name, id_vars) == TRUE &
      x$field_name != "None"){
     print("Pulling ID variables:")
     urls <- create_url_array_id_method(table_name = table_name,
@@ -548,7 +548,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   query_stop_time <- Sys.time()
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+  if(check_if_id_exists(table_name, id_vars) == TRUE &
      x$field_name != "None"){
     #get list of IDs within date filter range
     id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
@@ -603,14 +603,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     x <- read_table_in_cache_dir(table_name)
     
     #Create an API URL and use it to query POLIS
-    if(check_if_id_exists(table_name, id_vars = "Id") == FALSE |
+    if(check_if_id_exists(table_name, id_vars) == FALSE |
        x$field_name == "None"){
       urls <- create_url_array(table_name = table_name,
                                field_name = x$field_name,
                                min_date = x$latest_date,
                                download_size = download_size)
     }
-    if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+    if(check_if_id_exists(table_name, id_vars) == TRUE &
        x$field_name != "None"){
       urls <- create_url_array_id_method(table_name = table_name,
                                          field_name = x$field_name,
@@ -633,7 +633,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
 
-    if(check_if_id_exists(table_name, id_vars = "Id") == TRUE &
+    if(check_if_id_exists(table_name, id_vars) == TRUE &
        x$field_name != "None"){
       #get list of IDs within date filter range
       id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
@@ -654,7 +654,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Combine the query output with the old dataset and save
     #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
-  if(check_if_id_exists(table_name, id_vars = "Id") == TRUE & check_for_deleted_rows == TRUE){
+  if(check_if_id_exists(table_name, id_vars) == TRUE & check_for_deleted_rows == TRUE){
     full_idvars_output <- get_idvars_only(table_name = table_name,
                                         id_vars = id_vars)
   }
@@ -890,35 +890,35 @@ load_defaults <- function(){
     c(table_name_descriptive = "Case", table_name = "Case", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Environmental Sample", table_name = "EnvSample", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Geography", table_name = "Geography", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP cases", table_name = "IndicatorValue('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "IndicatorValue('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "IndicatorValue('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "IndicatorValue('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "IndicatorValue('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "IndicatorValue('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "IndicatorValue('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "IndicatorValue('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "IndicatorValue('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "IndicatorValue('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "IndicatorValue('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "IndicatorValue('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "IndicatorValue('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "IndicatorValue('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "IndicatorValue('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "IndicatorValue('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "IndicatorValue('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "IndicatorValue('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "IndicatorValue('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "IndicatorValue('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "IndicatorValue('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "IndicatorValue('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "IndicatorValue('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowId", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: AFP cases", table_name = "IndicatorValue('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "IndicatorValue('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "IndicatorValue('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "IndicatorValue('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "IndicatorValue('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "IndicatorValue('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "IndicatorValue('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "IndicatorValue('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "IndicatorValue('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "IndicatorValue('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "IndicatorValue('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "IndicatorValue('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "IndicatorValue('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "IndicatorValue('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "IndicatorValue('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "IndicatorValue('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "IndicatorValue('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "IndicatorValue('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "IndicatorValue('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "IndicatorValue('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "IndicatorValue('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "IndicatorValue('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "IndicatorValue('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
     c(table_name_descriptive = "Lab Specimen", table_name = "LabSpecimen", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Population", table_name = "Population", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),

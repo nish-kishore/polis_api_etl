@@ -509,14 +509,16 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   #Create an API URL and use it to query POLIS
   if(check_if_id_exists(table_name, id_vars) == FALSE |
-     x$field_name == "None"){
+     x$field_name == "None" |
+     grepl("IndicatorValue", table_name) == TRUE){
     urls <- create_url_array(table_name = table_name,
                            field_name = x$field_name,
                            min_date = x$latest_date,
                            download_size = download_size)
   }
   if(check_if_id_exists(table_name, id_vars) == TRUE &
-     x$field_name != "None"){
+     x$field_name != "None" &
+     grepl("IndicatorValue", table_name) == FALSE){
     print("Pulling ID variables:")
     urls <- create_url_array_id_method(table_name = table_name,
                                      field_name = x$field_name,
@@ -549,7 +551,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   
   if(check_if_id_exists(table_name, id_vars) == TRUE &
-     x$field_name != "None"){
+     x$field_name != "None" &
+     grepl("IndicatorValue", table_name) == FALSE){
     #get list of IDs within date filter range
     id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
     #filter query_output to the list of IDs

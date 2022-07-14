@@ -536,7 +536,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #     bind_rows(query_output_i)
   #   print(i)
   # }
-  query_output_list <- pb_mc_api_pull(urls[1:5])
+  query_output_list <- pb_mc_api_pull(urls)
   query_output <- query_output_list[[1]]
   if(is.null(query_output)){
     query_output <- data.frame(matrix(nrow=0, ncol=0))
@@ -622,7 +622,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     }
 
     query_start_time <- Sys.time()
-    query_output_list <- pb_mc_api_pull(urls[1:5])
+    query_output_list <- pb_mc_api_pull(urls)
     query_output <- query_output_list[[1]]
     if(is.null(query_output)){
       query_output <- data.frame(matrix(nrow=0, ncol=0))
@@ -1090,7 +1090,9 @@ get_polis_data <- function(folder = NULL,
   # defaults <- load_defaults() %>%
   #   filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
     defaults <- load_defaults() %>%
-      filter(!grepl("RefData", table_name) & !grepl("IndicatorValue", table_name)) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
+      filter(!grepl("RefData", table_name) &
+             !grepl("IndicatorValue", table_name) &
+             !(table_name == "Activity")) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
     
   }
   if(dev == FALSE){
@@ -1587,7 +1589,7 @@ get_ids_for_url_array <- function(table_name,
                                   field_name,
                                   min_date = min_date){
   urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
-  query_output_list <- pb_mc_api_pull(urls[1:5])
+  query_output_list <- pb_mc_api_pull(urls)
   id_list <- query_output_list[[1]]
   id_list_failed_urls <- query_output_list[[2]]
   id_list <- handle_failed_urls(id_list_failed_urls,
@@ -1744,7 +1746,7 @@ get_idvars_only <- function(table_name,
   urls <- create_url_array_idvars(table_name, id_vars)
   print("Checking for deleted Ids in the full table:")
   query_start_time <- Sys.time()
-  query_output_list <- pb_mc_api_pull(urls[1:5])
+  query_output_list <- pb_mc_api_pull(urls)
   query_output <- query_output_list[[1]]
   if(is.null(query_output)){
     query_output <- data.frame(matrix(nrow=0, ncol=0))
@@ -2011,7 +2013,7 @@ handle_failed_urls <- function(failed_urls,
                                save = TRUE){
   if(length(failed_urls) > 0){
     if(retry == TRUE){
-      retry_query_output_list <- pb_mc_api_pull(urls[1:5])
+      retry_query_output_list <- pb_mc_api_pull(failed_urls)
       retry_query_output <- retry_query_output_list[[1]]
       if(is.null(retry_query_output)){
         retry_query_output <- data.frame(matrix(nrow=0, ncol=0))

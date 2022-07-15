@@ -66,11 +66,11 @@ get_polis_table(table_name = "Lqas",
 
 get_polis_table()
 
-get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+get_polis_table(folder="//cdc.gov/project/CGH_GID_Active/PEB/SIR/DATA/POLIS",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d")
 
 start_time <- Sys.time()
-get_polis_data(folder="C:/Users/wxf7/Desktop/Full_POLIS_data",
+get_polis_data(folder="//cdc.gov/project/CGH_GID_Active/PEB/SIR/DATA/POLIS",
                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
                dev=TRUE)
 end_time <- Sys.time()
@@ -109,3 +109,21 @@ test_fx <- function(y){tryCatch({return(1 / y)}, error=function(e){
   })}
 vec <- list(1, 2, 3, 0, "x", 4, 5)
 out <- lapply(vec, test_fx)
+
+
+
+start_time <- Sys.time()
+get_polis_data(folder="C:/Users/wxf7/Desktop/Full_POLIS_data",
+               token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+               dev=TRUE)
+end_time <- Sys.time()
+full_pull_time <- difftime(end_time, start_time, units=c("mins"))
+print(full_pull_time)
+
+folder="//cdc.gov/project/CGH_GID_Active/PEB/SIR/DATA/POLIS"
+token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d"
+specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
+specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
+specs$polis$token <- token
+specs$polis_data_folder <- folder
+write_yaml(specs, specs_yaml)

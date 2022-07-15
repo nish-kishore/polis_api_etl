@@ -187,7 +187,7 @@ append_and_save <- function(query_output = query_output,
   
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
-    my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+    my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
@@ -230,7 +230,7 @@ append_and_save <- function(query_output = query_output,
   if(!is.null(query_output) & nrow(query_output) > 0 & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
     #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
-    my_url2 <-  paste0('https://extranet.who.int/polis/api/v2/',
+    my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
                        paste0(table_name, "?"),
                        "$inlinecount=allpages&$top=0",
                        '&token=',load_specs()$polis$token) %>%
@@ -543,7 +543,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   failed_urls <- query_output_list[[2]]
   query_output <- handle_failed_urls(failed_urls,
-                                     paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"),
+                                     file.path(load_specs()$polis_data_folder, paste0(table_name,"_failed_urls.rds")),
                                      query_output,
                                      retry = TRUE,
                                      save = TRUE)
@@ -629,7 +629,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     }
     failed_urls <- query_output_list[[2]]
     query_output <- handle_failed_urls(failed_urls,
-                                       paste0(load_specs()$polis_data_folder, "/", table_name,"_repull_failed_urls.rds"),
+                                       file.path(load_specs()$polis_data_folder, paste0(table_name,"_repull_failed_urls.rds")),
                                        query_output,
                                        retry = TRUE,
                                        save = TRUE)
@@ -639,7 +639,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     if(check_if_id_exists(table_name, id_vars) == TRUE &
        x$field_name != "None"){
       #get list of IDs within date filter range
-      id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+      id_list <- readRDS(file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
       #filter query_output to the list of IDs
       query_output <- query_output %>%
         filter(Id %in% id_list$Id)
@@ -650,8 +650,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     }
     }
   #If the temporary id_list file exists then delete it
-  if(file.exists(paste0(load_specs()$polis_data_folder, "/id_list_temporary_file.rds"))){
-    file.remove(paste0(load_specs()$polis_data_folder, "/id_list_temporary_file.rds"))
+  if(file.exists(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))){
+    file.remove(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))
   }
   
   #Combine the query output with the old dataset and save
@@ -715,7 +715,7 @@ get_table_count <- function(table_name,
   )
 
   if(field_name == "None"){
-    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+    my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
                      "$inlinecount=allpages",
                      '&token=',load_specs()$polis$token,
@@ -723,7 +723,7 @@ get_table_count <- function(table_name,
       httr::modify_url()
   }
   if(field_name != "None"){
-  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+  my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
@@ -772,14 +772,14 @@ create_url_array <- function(table_name,
     min_date
   )
   if(field_name == "None"){
-    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+    my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
                      "$inlinecount=allpages",
                      '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
   }
   if(field_name != "None"){
-  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+  my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
@@ -1123,7 +1123,7 @@ get_polis_data <- function(folder = NULL,
 
 #Run a simple API call to check if the user-provided token is valid
 validate_token <- function(token = token){
-  my_url_test <-  paste0('https://extranet.who.int/polis/api/v2/',
+  my_url_test <-  paste0('https:/extranet.who.int/polis/api/v2/',
                          'Case?',
                      "$inlinecount=allpages&$top=0",
                      '&token=',token) %>%
@@ -1144,7 +1144,7 @@ archive_last_data <- function(table_name,
 ){
   #If archive_folder was not specified, then check if the default exists, if not then create it
   if(is.null(archive_folder)){
-    archive_folder = paste0(load_specs()$polis_data_folder,"\\archive")
+    archive_folder = file.path(load_specs()$polis_data_folder,"archive")
     if(file.exists(archive_folder) == FALSE){
       dir.create(archive_folder)
     }
@@ -1160,12 +1160,12 @@ archive_last_data <- function(table_name,
   #for each item in current_files list, check if an archive subfolder exists, and if not then create it
   # for(i in current_files){  
   
-  if(file.exists(paste0(archive_folder, "\\", table_name)) == FALSE){
-    dir.create(paste0(archive_folder, "\\", table_name))
+  if(file.exists(file.path(archive_folder, table_name)) == FALSE){
+    dir.create(file.path(archive_folder, table_name))
   }
   #for each item in current_files:
   #delete the oldest file in it's subfolder if there are >= n_archive files in the subfolder
-  archive_list <- list.files(paste0(archive_folder, "\\", table_name)) %>%
+  archive_list <- list.files(file.path(archive_folder, table_name)) %>%
     stringr::str_subset(., pattern=".rds") %>%
     stringr::str_remove(., pattern=".rds")
   
@@ -1173,7 +1173,7 @@ archive_last_data <- function(table_name,
   if(length(archive_list) > 0){
     archive_list_timestamp <- c()
     for(j in archive_list){
-      timestamp <- as.POSIXct(file.info(paste0(archive_folder, "\\", table_name, "\\", j,".rds"))$ctime)
+      timestamp <- as.POSIXct(file.info(file.path(archive_folder, table_name, paste0(j,".rds")))$ctime)
       archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
     }
     oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
@@ -1183,23 +1183,23 @@ archive_last_data <- function(table_name,
       paste0(., ".rds")
   }
   if(length(archive_list) >= n_archive){
-    file.remove(paste0(archive_folder, "\\", table_name, "\\", oldest_file))
+    file.remove(file.path(archive_folder, table_name, oldest_file))
   }
   
   #write the current file to the archive subfolder
   
-  if(file.exists(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds"))){
-    current_file_timestamp <- attr(readRDS(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds")), which="updated")
-    current_file <- readRDS(paste0(load_specs()$polis_data_folder, "\\", table_name,".rds"))
-    write_rds(current_file, paste0(archive_folder, "\\", table_name, "\\", table_name, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds"))
+  if(file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))){
+    current_file_timestamp <- attr(readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds"))), which="updated")
+    current_file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
+    write_rds(current_file, file.path(archive_folder, table_name, paste0(table_name, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds")))
     #remove the current file from the main folder #Undid this as the current file is needed for append_and_save()
-    # file.remove(paste0(load_specs()$polis_data_folder, "\\", i,".rds"))
+    # file.remove(paste0(load_specs()$polis_data_folder, "/", i,".rds"))
   }
  
 }
 
 
-#data cleaning: standardize variable names by the following rules: [From: https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
+#data cleaning: standardize variable names by the following rules: [From: https:/cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
   # Parse letter cases and separators to a consistent format (e.g. snake_case)
   # Remove leading/trailing/repeating spaces
   # Replace special characters with alphanumeric (e.g. o to oe)
@@ -1227,7 +1227,7 @@ add_cache_attributes <- function(table_name){
     #get cache entry
     cache_entry <- read_cache(.file_name = table_name)
     #read in file
-    file <- readRDS(paste0(load_specs()$polis_data_folder,"\\", table_name,".rds"))
+    file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
     #Assign attributes  
     attributes(file)$created <- cache_entry$created
     attributes(file)$date_field <- cache_entry$date_field
@@ -1236,10 +1236,10 @@ add_cache_attributes <- function(table_name){
     attributes(file)$latest_date <- cache_entry$latest_date
     attributes(file)$updated <- cache_entry$updated
     #Write file
-    write_rds(file, paste0(load_specs()$polis_data_folder,"\\", table_name,".rds"))
+    write_rds(file, file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
 }
 
-#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https://r4ds.had.co.nz/data-import.html]
+#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https:/r4ds.had.co.nz/data-import.html]
   # 1. logical: contains only "F", "T", "FALSE", or "TRUE"
   # 2. integer: contains only numeric characters (and -).
   # 3. double: contains only valid doubles (including numbers like 4.5e-5)
@@ -1357,14 +1357,14 @@ cleaning_var_names_from_file <- function(table_name = NULL,
                                          desired_naming_convention = NULL){
   if(is.null(var_name_file)){
     #Check if file exists. if not, then create the folder and download the file
-    if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds")) == FALSE){
-      if(file.exists(paste0(load_specs()$polis_data_folder, "/datafiles")) == FALSE){
-        dir.create(paste0(load_specs()$polis_data_folder, "/datafiles"))
+    if(file.exists(file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds")) == FALSE){
+      if(file.exists(file.path(load_specs()$polis_data_folder, "datafiles")) == FALSE){
+        dir.create(file.path(load_specs()$polis_data_folder, "datafiles"))
       }
-      var_name_synonyms <- read.csv("https://raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.rds?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
-      write_rds(var_name_synonyms, paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
+      var_name_synonyms <- read.csv("https:/raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.rds?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
+      write_rds(var_name_synonyms, file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds"))
     }
-    var_name_synonyms <- readRDS(paste0(load_specs()$polis_data_folder, "/datafiles/var_name_synonyms.rds"))
+    var_name_synonyms <- readRDS(file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds"))
   }
   if(!is.null(var_name_file)){
     var_name_synonyms <- readRDS(var_name_file)
@@ -1393,9 +1393,9 @@ cleaning_var_names_from_file <- function(table_name = NULL,
 }
 
 cleaning_var_class_from_metadata <- function(){
-  url <- 'https://extranet.who.int/polis/api/v2/$metadata'
+  url <- 'https:/extranet.who.int/polis/api/v2/$metadata'
   
-  nodes <- read_html(url, xpath = '//h3 | //*[contains(concat( " ", @class, " 
+  nodes <- read_html(url, xpath = '/h3 | /*[contains(concat( " ", @class, " 
 " ), concat( " ", "entry-title", " " ))]')
   
   page <- htmlTreeParse(nodes)$children[["html"]][["body"]][["edmx"]][["dataservices"]][["schema"]] %>%
@@ -1462,7 +1462,7 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
          ") or (",
          date_null_conv(field_name), ")")
     
-  my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+  my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
@@ -1493,7 +1493,7 @@ create_url_array_id_section <- function(table_name = table_name,
                                         id_section_table = id_section_table){
   urls <- c()
   for(i in id_section_table$filter_url_conv){
-    url <- paste0('https://extranet.who.int/polis/api/v2/',
+    url <- paste0('https:/extranet.who.int/polis/api/v2/',
                   paste0(table_name, "?"),
                   '$filter=', 
                   i,
@@ -1511,7 +1511,7 @@ create_url_array_id_method <- function(table_name,
   options(scipen = 999)
   
   get_ids_for_url_array(table_name, id_vars, field_name, min_date)
-  id_list <- readRDS(paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+  id_list <- readRDS(file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
   id_list2 <- id_list %>% 
     select(id_vars) %>%
     unique() %>%
@@ -1575,7 +1575,7 @@ create_url_array_id_method <- function(table_name,
 
 check_if_id_exists <- function(table_name,
                                id_vars = "Id"){
-  url <-  paste0('https://extranet.who.int/polis/api/v2/',
+  url <-  paste0('https:/extranet.who.int/polis/api/v2/',
                         paste0(table_name, "?"),
                         '$select=', 
                         paste(id_vars, collapse=", "),
@@ -1594,11 +1594,11 @@ get_ids_for_url_array <- function(table_name,
   id_list <- query_output_list[[1]]
   id_list_failed_urls <- query_output_list[[2]]
   id_list <- handle_failed_urls(id_list_failed_urls,
-                                     paste0(load_specs()$polis_data_folder, "/", table_name,"_id_list_failed_urls.rds"),
+                                     file.path(load_specs()$polis_data_folder, paste0(table_name,"_id_list_failed_urls.rds")),
                                      id_list,
                                      retry = TRUE,
                                      save = TRUE)
-  write_rds(id_list, paste0(load_specs()$polis_data_folder,"/id_list_temporary_file.rds"))
+  write_rds(id_list, file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
 }
 
 #Function that moves the rds files in the polis_data folder to an snapshot folder
@@ -1607,7 +1607,7 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
 ){
   #If snapshot_folder was not specified, then check if the default exists, if not then create it
   if(is.null(snapshot_folder)){
-    snapshot_folder = paste0(load_specs()$polis_data_folder,"\\snapshots")
+    snapshot_folder = file.path(load_specs()$polis_data_folder,"snapshots")
     if(file.exists(snapshot_folder) == FALSE){
       dir.create(snapshot_folder)
     }
@@ -1617,7 +1617,7 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
   x <- gsub(":","", snapshot_date)
   x <- gsub(" ","_", x)
   x <- gsub("-","", x)
-  snapshot_subfolder <- paste0(snapshot_folder, "\\snapshot_", x)
+  snapshot_subfolder <- file.path(snapshot_folder, paste0("snapshot_", x))
   dir.create(snapshot_subfolder)
   #Get list of rds files to save in snapshot from polis_data_folder
   current_files <- list.files(load_specs()$polis_data_folder) %>%
@@ -1628,25 +1628,25 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
   
   #write the current file to the snapshot subfolder:
   for(i in current_files){
-    write_rds(readRDS(paste0(load_specs()$polis_data_folder, "\\", i,".rds")),
-              paste0(snapshot_subfolder, "\\", i,".rds"))
+    write_rds(readRDS(file.path(load_specs()$polis_data_folder, paste0(i,".rds"))),
+              file.path(snapshot_subfolder, paste0(i,".rds")))
   }
 }
 
 
 revert_from_archive <- function(last_good_date = Sys.Date()-1){
   folder <- load_specs()$polis_data_folder
-  archive_folder <- paste0(load_specs()$polis_data_folder,"\\archive")
+  archive_folder <- file.path(load_specs()$polis_data_folder,"archive")
   
   #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
     #get directory of subfolders
       subfolder_list <- list.files(archive_folder)
     #for each item in subfolder_list, get all file names then subset to most recent
       for(i in subfolder_list){
-        subfolder_files <- list.files(paste0(archive_folder, "\\", i))
+        subfolder_files <- list.files(file.path(archive_folder, i))
         file_dates <- c()
         for(j in subfolder_files){
-          file_date <- attr(readRDS(paste0(archive_folder, "\\", i, "\\", j)),which="updated")
+          file_date <- attr(readRDS(file.path(archive_folder, i, j)),which="updated")
           file_dates <- c(file_dates, file_date)
         }
         file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
@@ -1656,9 +1656,9 @@ revert_from_archive <- function(last_good_date = Sys.Date()-1){
           slice(1))$name
         #load file to keep
         if(length(file_to_keep) > 0){
-        file_to_keep <- readRDS(paste0(archive_folder, "\\", i, "\\", file_to_keep))
+        file_to_keep <- readRDS(file.path(archive_folder, i, file_to_keep))
         #write file to keep to data folder
-        write_rds(file_to_keep, paste0(folder,"\\",i,".rds"))
+        write_rds(file_to_keep, file.path(folder, paste0(i,".rds")))
         }
         if(length(file_to_keep) == 0){
           warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
@@ -1680,11 +1680,11 @@ update_cache_from_files <- function(){
     #For each rds, read its attributes, assign attributes to cache
       for(i in current_files){  
         #read attributes  
-        attr_created <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "created") 
-        attr_date_field <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "date_field") 
-        attr_file_type <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "file_type") 
-        attr_latest_date <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "latest_date") 
-        attr_updated <- attr(readRDS(paste0(load_specs()$polis_data_folder,"\\",i,".rds")), which = "updated") 
+        attr_created <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "created") 
+        attr_date_field <- attr(readRDS(file.path(load_specs()$polis_data_folder, paste0(i,".rds"))), which = "date_field") 
+        attr_file_type <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "file_type") 
+        attr_latest_date <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "latest_date") 
+        attr_updated <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "updated") 
         cache <- cache %>%
           mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M:%S"), origin = lubridate::origin),
                  date_field = ifelse(file_name == i, attr_date_field, date_field),
@@ -1702,14 +1702,14 @@ update_cache_from_files <- function(){
 create_url_array_idvars <- function(table_name = table_name,
                                     id_vars = id_vars){
   # construct general URL
-    my_url <- paste0('https://extranet.who.int/polis/api/v2/',
+    my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$select=", paste(id_vars, collapse=","),
                    "&$inlinecount=allpages",
                    '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
   # Get table size
-      my_url2 <- paste0('https://extranet.who.int/polis/api/v2/',
+      my_url2 <- paste0('https:/extranet.who.int/polis/api/v2/',
                          paste0(table_name, "?"),
                          "$inlinecount=allpages",
                          '&token=',load_specs()$polis$token,
@@ -1754,7 +1754,7 @@ get_idvars_only <- function(table_name,
   }
   failed_urls <- query_output_list[[2]]
   query_output <- handle_failed_urls(failed_urls,
-                                paste0(load_specs()$polis_data_folder, "/", table_name,"_full_id_set_failed_urls.rds"),
+                                file.path(load_specs()$polis_data_folder, paste0(table_name,"_full_id_set_failed_urls.rds")),
                                 query_output,
                                 retry = TRUE,
                                 save = TRUE)
@@ -1783,16 +1783,16 @@ compare_final_to_archive <- function(table_name,
                                      categorical_max = 30){
   id_vars <- as.vector(id_vars)
   #Load new_file
-  new_file <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name, ".rds"))
+  new_file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
 
   #load latest file in archive subfolder
-  archive_subfolder <- paste0(load_specs()$polis_data_folder,"\\archive\\", table_name)
+  archive_subfolder <- file.path(load_specs()$polis_data_folder, "archive", table_name)
 
   #for each item in subfolder_list, get all file names then subset to most recent
     subfolder_files <- list.files(paste0(archive_subfolder))
     file_dates <- c()
     for(j in subfolder_files){
-      file_date <- attr(readRDS(paste0(archive_subfolder, "\\", j)),which="updated")
+      file_date <- attr(readRDS(file.path(archive_subfolder, j)),which="updated")
       file_dates <- c(file_dates, file_date)
     }
     latest_file <- c()
@@ -1805,7 +1805,7 @@ compare_final_to_archive <- function(table_name,
     change_summary <- NULL
     if(length(latest_file) > 0){
       #load latest_file
-      latest_file <- readRDS(paste0(archive_subfolder, "\\", latest_file))
+      latest_file <- readRDS(file.path(archive_subfolder, latest_file))
 
       #get metadata for latest file and new_file
       new_file_metadata <- get_polis_metadata(query_output = new_file,
@@ -1867,14 +1867,14 @@ save_change_summary <- function(table_name,
                                 n_change_log = 30){
   #If change_log_folder was not specified, then check if the default exists, if not then create it
   if(is.null(change_log_folder)){
-    change_log_folder = paste0(load_specs()$polis_data_folder,"\\change_log")
+    change_log_folder = file.path(load_specs()$polis_data_folder,"change_log")
     if(file.exists(change_log_folder) == FALSE){
       dir.create(change_log_folder)
     }
   }
   
   #If change_log subfolder does not exist, then create it
-  change_log_subfolder = paste0(load_specs()$polis_data_folder,"\\change_log\\", table_name)
+  change_log_subfolder = file.path(load_specs()$polis_data_folder,"change_log", table_name)
   if(file.exists(change_log_subfolder) == FALSE){
     dir.create(change_log_subfolder)
   }
@@ -1885,7 +1885,7 @@ save_change_summary <- function(table_name,
     stringr::str_remove(., pattern=".rds")
   change_log_list_timestamp <- c()
   for(j in change_log_list){
-    timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+    timestamp <- as.POSIXct(file.info(file.path(change_log_subfolder, paste0(j,".rds")))$ctime)
     change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
   }
   if(length(change_log_list) > 0){
@@ -1896,17 +1896,17 @@ save_change_summary <- function(table_name,
     paste0(., ".rds")
   }
   if(length(change_log_list) >= n_change_log){
-    file.remove(paste0(change_log_subfolder, "\\", oldest_file))
+    file.remove(file.path(change_log_subfolder, oldest_file))
   }
   #write the current file to the archive subfolder
-  write_rds(change_summary, paste0(change_log_subfolder, "\\", table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds"))
+  write_rds(change_summary, file.path(change_log_subfolder, paste0(table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds")))
 }
 
 #function which prints the latest change log into console
 print_latest_change_log_summary <- function(){
   #load and combine latest change_log for all tables
     #Check if change_log folder exists. If not, go to end.
-    change_log_folder <- paste0(load_specs()$polis_data_folder,"\\change_log")
+    change_log_folder <- file.path(load_specs()$polis_data_folder,"change_log")
     if(file.exists(change_log_folder) == TRUE){
       #Get list of subfolders
       change_log_subfolder_list <- list.files(change_log_folder)
@@ -1919,13 +1919,13 @@ print_latest_change_log_summary <- function(){
       new_vars_combined <- data.frame()
       for(i in change_log_subfolder_list){
         change_log_list <- c()
-        change_log_subfolder <- paste0(change_log_folder, "\\", i)
+        change_log_subfolder <- file.path(change_log_folder, i)
         change_log_list <- list.files(change_log_subfolder) %>%
           stringr::str_subset(., pattern=".rds") %>%
           stringr::str_remove(., pattern=".rds")
         change_log_list_timestamp <- c()  
         for(j in change_log_list){
-          timestamp <- as.POSIXct(file.info(paste0(change_log_subfolder, "\\", j,".rds"))$ctime)
+          timestamp <- as.POSIXct(file.info(file.path(change_log_subfolder, paste0(j,".rds")))$ctime)
           change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
         }
         if(length(change_log_list) > 0){
@@ -1934,7 +1934,7 @@ print_latest_change_log_summary <- function(){
                           arrange(desc(timestamp)) %>%
                           slice(1))$file %>%
           paste0(., ".rds")
-          change_log <- readRDS(paste0(change_log_subfolder, "\\", newest_file))
+          change_log <- readRDS(file.path(change_log_subfolder, newest_file))
           new_response <- change_log$new_response %>%
             mutate(table_name = i)
           class_changed_vars <- change_log$class_changed_vars %>%

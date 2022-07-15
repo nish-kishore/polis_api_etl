@@ -69,9 +69,43 @@ get_polis_table()
 get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d")
 
-get_polis_data()
+start_time <- Sys.time()
+get_polis_data(folder="C:/Users/wxf7/Desktop/Full_POLIS_data",
+               token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+               dev=TRUE)
+end_time <- Sys.time()
+full_pull_time <- difftime(end_time, start_time, units=c("mins"))
+print(full_pull_time)
+
 get_polis_data(folder="C:/Users/wxf7/Desktop/POLIS_data",
                dev = TRUE)
 
 
 test <- clean_polis_data(EnvSample)
+
+
+
+# my_url <- "https://extranet.who.int/polis/api/v2/Virus?%24filter=SubRegionName%20ne%20null&%24inlinecount=allpages&token=BRfIZj%2FI9B3MwdWKtLzG%2BkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2BGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2BAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3D&skip=10000"
+# my_url <- "https://extranet.who.int/polis/api/v2/EnvSample?&%24inlinecount=allpages&token=BRfIZj%2FI9B3MwdWKtLzG%2BkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2BGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2BAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3D"
+
+my_url <- "https://extranet.who.int/polis/api/v2/RefData('YesNo')?&%24inlinecount=allpages&token=BRfIZj%2FI9B3MwdWKtLzG%2BkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2BGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2BAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3D&skip=10000"
+test1 <- httr::GET(my_url)
+# test1$status_code
+test2 <- test1 %>% httr::content(type='text', encoding = 'UTF-8') %>% jsonlite::fromJSON() %>% {.$value} %>% as_tibble() %>% mutate_all(., as.character)
+# table(test2$SubRegionName)
+View(test2)
+
+
+table(test2$Periodicity)
+# table(test2$Code)
+table(test2$PeriodType)
+table(test2$Comments)
+
+
+#tryCatch() example:
+test_fx <- function(y){tryCatch({return(1 / y)}, error=function(e){
+  y <- 10
+  return(test_fx(y))
+  })}
+vec <- list(1, 2, 3, 0, "x", 4, 5)
+out <- lapply(vec, test_fx)

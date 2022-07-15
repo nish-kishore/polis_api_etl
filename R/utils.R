@@ -197,7 +197,7 @@ append_and_save <- function(query_output = query_output,
     i <- 1
     while(status_code != "200" & i < 10){
       result2 <- NULL
-      result2 <- httr::GET(my_url2, timeout(1))
+      result2 <- httr::GET(my_url2, timeout(150))
       if(is.null(result2) == FALSE){
       status_code <- as.character(result2$status_code)
       }

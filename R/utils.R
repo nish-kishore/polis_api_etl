@@ -80,6 +80,7 @@ init_polis_data_table <- function(table_name = table_name,
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
+  #If there is no cache entry for the requested table then create it: 
   if(nrow(read_cache(.file_name = table_name)) == 0){
     #Create cache entry
     readRDS(cache_file) %>%
@@ -174,43 +175,44 @@ append_and_save <- function(query_output = query_output,
   }
   #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
   if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
-  old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+      old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
                 mutate_all(.,as.character) %>%
       #remove records that are in new file
       anti_join(query_output, by=id_vars) 
-  #remove records that are no longer in the POLIS table from old_polis
-  if(nrow(full_idvars_output) > 0){
-  old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
-                                           new_complete_file = old_polis,
-                                           id_vars = id_vars)
-  }
+      #remove records that are no longer in the POLIS table from old_polis
+      if(nrow(full_idvars_output) > 0){
+          old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                                   new_complete_file = old_polis,
+                                                   id_vars = id_vars)
+      }
   
   #check that the combined total row number matches POLIS table row number before appending
     #Get full table size for comparison to what was pulled via API, saved as "table_count2"
-    my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
-                       paste0(table_name, "?"),
-                       "$inlinecount=allpages&$top=0",
-                       '&token=',load_specs()$polis$token) %>%
-      httr::modify_url()
-    
-    status_code <- "x"
-    i <- 1
-    while(status_code != "200" & i < 10){
-      result2 <- NULL
-      result2 <- httr::GET(my_url2, timeout(1))
-      if(is.null(result2) == FALSE){
-      status_code <- as.character(result2$status_code)
-      }
-      i <- i+1
-      if(i == 10){
-        stop("Query halted. Repeated API call failure.")
-      }
-      Sys.sleep(10)
-    }
-    rm(status_code)
-    
-    result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    table_count2 <- as.numeric(result_content2$odata.count)
+      # my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
+      #                  paste0(table_name, "?"),
+      #                  "$inlinecount=allpages&$top=0",
+      #                  '&token=',load_specs()$polis$token) %>%
+      # httr::modify_url()
+      # 
+      # #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
+      # status_code <- "x"
+      # i <- 1
+      # while(status_code != "200" & i < 10){
+      #   result2 <- NULL
+      #   result2 <- httr::GET(my_url2, timeout(1))
+      #   if(is.null(result2) == FALSE){
+      #   status_code <- as.character(result2$status_code)
+      #   }
+      #   i <- i+1
+      #   if(i == 10){
+      #     stop("Query halted. Repeated API call failure.")
+      #   }
+      #   Sys.sleep(10)
+      # }
+      # rm(status_code)
+      # 
+      # result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+      # table_count2 <- as.numeric(result_content2$odata.count)
 
     #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
     # if(table_count2 == nrow(old_polis) + nrow(query_output)){
@@ -236,6 +238,7 @@ append_and_save <- function(query_output = query_output,
                        '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
     
+    #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
     status_code <- "x"
     i <- 1
     while(status_code != "200" & i < 10){
@@ -275,25 +278,25 @@ get_update_cache_dates <- function(query_output,
 
     #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it
     if(!is.null(query_output) && nrow(query_output) > 0 && field_name %in% colnames(query_output)){
-    temp <- query_output %>%
-      select(all_of(field_name)) %>%
-      rename(field_name = 1) %>%
-      mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
-      as.data.frame()
-    latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
+      temp <- query_output %>%
+        select(all_of(field_name)) %>%
+        rename(field_name = 1) %>%
+        mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
+        as.data.frame()
+      latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
 
     #If the newly pulled dataset is empty (i.e. there is no new data since the last pull), then pull the latest_date as the max of field_name in the old dataset
     if((is.null(query_output) | nrow(query_output) == 0) && field_name %in% colnames(read_lines_raw(file.path(load_specs()$polis_data_folder,
                                                                                  paste0(table_name, ".rds")),n_max=100))){
-    old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
-      mutate_all(.,as.character)
-    temp <- old_polis %>%
-      select(all_of(field_name)) %>%
-      rename(field_name = 1) %>%
-      mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
-      as.data.frame()
-    latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
+      old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+        mutate_all(.,as.character)
+      temp <- old_polis %>%
+        select(all_of(field_name)) %>%
+        rename(field_name = 1) %>%
+        mutate(field_name = as.Date(field_name, "%Y-%m-%d")) %>%
+        as.data.frame()
+      latest_date <- as.Date(max(temp[,1], na.rm=TRUE), "%Y-%m-%d")
     }
   #If field_name is blank or not in the dataset, save latest_date as NA
   if(!is.null(query_output) && nrow(query_output) > 0 && !(field_name %in% colnames(query_output))){
@@ -342,30 +345,33 @@ metadata_comparison <- function(new_table_metadata,
   #if new or old metadata are null, go to end
   if(!is.null(new_table_metadata) & !is.null(old_table_metadata)){
     if(nrow(new_table_metadata) != 0 & nrow(old_table_metadata) != 0){
-    #compare to old metadata
-    compare_metadata <- old_table_metadata %>%
-      full_join(new_table_metadata, by=c("var_name"))
-
-    new_vars <- (compare_metadata %>%
-      filter(is.na(var_class.x)))$var_name
-
-    if(length(new_vars) != 0){
-      new_vars <- new_vars
-      if(verbose == TRUE){
-      warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
+      #compare to old metadata
+      compare_metadata <- old_table_metadata %>%
+        full_join(new_table_metadata, by=c("var_name"))
+      
+      #Get list of new variables (variables in the new dataset but not the old)
+      new_vars <- (compare_metadata %>%
+        filter(is.na(var_class.x)))$var_name
+  
+      if(length(new_vars) != 0){
+        new_vars <- new_vars
+        if(verbose == TRUE){
+        warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
       }
     }
 
+    #Get list of lost variables (variables in the old dataset but not the new)
     lost_vars <- (compare_metadata %>%
       filter(is.na(var_class.y)))$var_name
 
     if(length(lost_vars) != 0){
       lost_vars <- lost_vars
       if(verbose == TRUE){
-      warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
+        warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
       }
     }
-
+    
+    #Get list of variables that have a different class in the new dataset than in old dataset
     class_changed_vars <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
              !(var_name %in% new_vars) &
@@ -378,9 +384,10 @@ metadata_comparison <- function(new_table_metadata,
     if(nrow(class_changed_vars) != 0){
       class_changed_vars <- class_changed_vars
       if(verbose == TRUE){
-      warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
+        warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
       }
     }
+    
     #Check for new responses in categorical variables (excluding new variables and class changed variables that have been previously shown)
     new_response <- compare_metadata %>%
       filter(!(var_name %in% lost_vars) &
@@ -419,6 +426,7 @@ metadata_comparison <- function(new_table_metadata,
   if(is.null(new_table_metadata) | is.null(old_table_metadata)){
     re_pull_polis_indicator <- FALSE
   }
+  #Combine the changes into a list and return to be saved
   change_summary <- list(re_pull_polis_indicator = re_pull_polis_indicator, new_response = new_response, class_changed_vars = class_changed_vars, lost_vars = lost_vars, new_vars = new_vars)
   return(change_summary)
 }
@@ -606,44 +614,49 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     x <- read_table_in_cache_dir(table_name)
     
     #Create an API URL and use it to query POLIS
-    if(check_if_id_exists(table_name, id_vars) == FALSE |
-       x$field_name == "None"){
-      urls <- create_url_array(table_name = table_name,
-                               field_name = x$field_name,
-                               min_date = x$latest_date,
-                               download_size = download_size)
-    }
-    if(check_if_id_exists(table_name, id_vars) == TRUE &
-       x$field_name != "None"){
-      urls <- create_url_array_id_method(table_name = table_name,
-                                         field_name = x$field_name,
-                                         min_date = x$latest_date,
-                                         id_vars = id_vars)
-    }
+      #If there is no Id or date field, then create a url array using the skip/top method:
+        if(check_if_id_exists(table_name, id_vars) == FALSE |
+           x$field_name == "None"){
+          urls <- create_url_array(table_name = table_name,
+                                   field_name = x$field_name,
+                                   min_date = x$latest_date,
+                                   download_size = download_size)
+        }
+      #If there is an Id and date field, then create a url array using the Id-filter method
+        if(check_if_id_exists(table_name, id_vars) == TRUE &
+           x$field_name != "None"){
+          urls <- create_url_array_id_method(table_name = table_name,
+                                             field_name = x$field_name,
+                                             min_date = x$latest_date,
+                                             id_vars = id_vars)
+        }
 
+    #Call each url in 'urls' array:
     query_start_time <- Sys.time()
     query_output_list <- pb_mc_api_pull(urls)
     query_output <- query_output_list[[1]]
     if(is.null(query_output)){
       query_output <- data.frame(matrix(nrow=0, ncol=0))
     }
-    failed_urls <- query_output_list[[2]]
-    query_output <- handle_failed_urls(failed_urls,
-                                       file.path(load_specs()$polis_data_folder, paste0(table_name,"_repull_failed_urls.rds")),
-                                       query_output,
-                                       retry = TRUE,
-                                       save = TRUE)
+    #If there are any failed urls, re-try them
+      failed_urls <- query_output_list[[2]]
+      query_output <- handle_failed_urls(failed_urls,
+                                         file.path(load_specs()$polis_data_folder, paste0(table_name,"_repull_failed_urls.rds")),
+                                         query_output,
+                                         retry = TRUE,
+                                         save = TRUE)
     query_stop_time <- Sys.time()
     query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
 
-    if(check_if_id_exists(table_name, id_vars) == TRUE &
-       x$field_name != "None"){
-      #get list of IDs within date filter range
-      id_list <- readRDS(file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
-      #filter query_output to the list of IDs
-      query_output <- query_output %>%
-        filter(Id %in% id_list$Id)
-    }
+    #If the ID-filter method was used, check that only Ids in the requested set are included in query_output
+    # if(check_if_id_exists(table_name, id_vars) == TRUE &
+    #    x$field_name != "None"){
+    #   #get list of IDs within date filter range
+    #   id_list <- readRDS(file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
+    #   #filter query_output to the list of IDs
+    #   query_output <- query_output %>%
+    #     filter(Id %in% id_list$Id)
+    # }
     
     if(!is.null(query_output) & nrow(query_output)>0){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
@@ -662,6 +675,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                         id_vars = id_vars)
   }
     
+  #Combine the newly pulled dataset with the old dataset and save to folder
   new_query_output <- append_and_save(query_output = query_output,
                                       table_name = table_name,
                                       id_vars = id_vars,
@@ -713,7 +727,7 @@ get_table_count <- function(table_name,
     field_name,
     min_date
   )
-
+  #If no date field, then get the full table size:
   if(field_name == "None"){
     my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
@@ -722,8 +736,9 @@ get_table_count <- function(table_name,
                      "&$top=0") %>%
       httr::modify_url()
   }
+  #If there is a date field, then filter the full table to the requested date range and get the resulting table size
   if(field_name != "None"){
-  my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
+    my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
                    "$filter=",
                    if(filter_url_conv == "") "" else paste0(filter_url_conv),
@@ -732,19 +747,20 @@ get_table_count <- function(table_name,
     httr::modify_url()
   }
   
+  #Call my_url until the call succeeds or is tried 10 times:
   status_code <- "x"
   i <- 1
   while(status_code != "200" & i < 10){
-  response <- NULL
-  response <- httr::GET(my_url, timeout(150))
-  if(is.null(response) == FALSE){
-    status_code <- as.character(response$status_code)
-  }
-  i <- i+1
-  if(i == 10){
-    stop("Query halted. Repeated API call failure.")
-  }
-  Sys.sleep(10)
+    response <- NULL
+    response <- httr::GET(my_url, timeout(150))
+    if(is.null(response) == FALSE){
+      status_code <- as.character(response$status_code)
+    }
+    i <- i+1
+    if(i == 10){
+      stop("Query halted. Repeated API call failure.")
+    }
+    Sys.sleep(10)
   }
   rm(status_code)
   
@@ -756,7 +772,7 @@ get_table_count <- function(table_name,
     return()
 }
 
-#' create an array of URL's for a given table
+#' create an array of URL's for a given table using the skip/top method
 #' @param table_name string of a table name available in POLIS
 #' @param min_date 'date' object of earliest date acceptable for filter
 #' @param field_name string of field name used to filter date
@@ -771,6 +787,7 @@ create_url_array <- function(table_name,
     field_name,
     min_date
   )
+  #If there is no date filter, create a url without a date filter:
   if(field_name == "None"){
     my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                      paste0(table_name, "?"),
@@ -778,6 +795,7 @@ create_url_array <- function(table_name,
                      '&token=',load_specs()$polis$token) %>%
       httr::modify_url()
   }
+  #If there is a data filter, create a url with the date filter:
   if(field_name != "None"){
   my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
@@ -786,7 +804,7 @@ create_url_array <- function(table_name,
                    '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
   }
-
+  #Get the full table size, used for creating the url array:
   table_size <- get_table_count(table_name = table_name,
                                 min_date = min_date,
                                 field_name = field_name)
@@ -868,7 +886,10 @@ pb_mc_api_pull <- function(urls){
   with_progress({
     result <- mc_api_pull(urls)
   })
+  
   failed_urls <- c()
+  
+  #extract data from result and combine into result_df
   for(i in 1:length(result)){
     data <- result[[i]]$data[[1]]
     if(i == 1){
@@ -878,10 +899,12 @@ pb_mc_api_pull <- function(urls){
       result_df <- result_df %>%
         bind_rows(data)
     }
+    #If the url failed, extract the url from result and add to the failed_urls list
     if(is.null(data)){
       failed_urls <- c(failed_urls, result[[i]]$url[1])
     }
   }
+  #Combine the full dataset and failed_urls list and return
   result <- list(result_df, failed_urls)
   return(result)
   stopCluster(n_cores)
@@ -1021,6 +1044,7 @@ load_defaults <- function(){
   return(defaults)
 }
 
+#Get user input for which table to pull, if not specified:
 prompt_user_input <- function(){
   defaults <- load_defaults()
   table_list <- c((defaults %>%
@@ -1047,8 +1071,9 @@ prompt_user_input <- function(){
       filter(table_input == table_name_descriptive)
   }
   return(table_defaults)
-  }
+}
 
+#Pull all tables through running get_polis_table across all tables:
 get_polis_data <- function(folder = NULL,
                            token = "",
                            verbose=TRUE,
@@ -1217,6 +1242,7 @@ cleaning_var_names_initial <- function(input_dataframe = NULL,
   return(input_dataframe)
 }
 
+#Add the metadata stored in cache to a table as an attribute, so that table-specific metadata can be retained through archiving / retrieval from archive
 add_cache_attributes <- function(table_name){
   #Get list of rds 
   # current_files <- list.files(load_specs()$polis_data_folder) %>%
@@ -1392,6 +1418,7 @@ cleaning_var_names_from_file <- function(table_name = NULL,
   return(input_dataframe)
 }
 
+#get variable class from metadata page (needs some correction still to match metadata to API table names/var names)
 cleaning_var_class_from_metadata <- function(){
   url <- 'https:/extranet.who.int/polis/api/v2/$metadata'
   
@@ -1452,6 +1479,7 @@ clean_polis_data <- function(input_dataframe = NULL){
   return(input_dataframe)
 }
 
+#Create url array using ID filter method
 create_url_array_idvars_and_field_name <- function(table_name = table_name,
                                                    id_vars = id_vars,
                                                    field_name = field_name,
@@ -1573,6 +1601,7 @@ create_url_array_id_method <- function(table_name,
     return(urls)
 }
 
+#Check if the specified id variable exists in the table:
 check_if_id_exists <- function(table_name,
                                id_vars = "Id"){
   url <-  paste0('https:/extranet.who.int/polis/api/v2/',
@@ -1585,6 +1614,8 @@ check_if_id_exists <- function(table_name,
   id_exists <- ifelse(status=="200", TRUE, FALSE)
   return(id_exists)
 }
+
+#Get all ids for id-filter method
 get_ids_for_url_array <- function(table_name,
                                   id_vars,
                                   field_name,
@@ -1633,7 +1664,7 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
   }
 }
 
-
+#Restore all datasets from the latest archived datasets with date at or prior to last_good_date
 revert_from_archive <- function(last_good_date = Sys.Date()-1){
   folder <- load_specs()$polis_data_folder
   archive_folder <- file.path(load_specs()$polis_data_folder,"archive")
@@ -1742,6 +1773,7 @@ create_url_array_idvars <- function(table_name = table_name,
     return(urls)
 }
 
+#Get all IDs in table, used to identify deleted IDs since the last download
 get_idvars_only <- function(table_name,
                             id_vars){
   urls <- create_url_array_idvars(table_name, id_vars)
@@ -2007,6 +2039,7 @@ print_latest_change_log_summary <- function(){
     }
 }
 
+#retry all urls that failed when calling a url array
 handle_failed_urls <- function(failed_urls,
                                failed_url_filename,
                                query_output, 

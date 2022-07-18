@@ -74,7 +74,7 @@ update_cache <- function(.file_name,
 }
 
 
-#fx1: check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
+#Check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
 init_polis_data_table <- function(table_name = table_name,
                                   field_name = field_name){
   folder <- load_specs()$polis_data_folder
@@ -96,7 +96,7 @@ init_polis_data_table <- function(table_name = table_name,
   }
 }
 
-#fx2: read cache_dir and return table-name, last-update, and latest-date to the working environment
+#Read cache_dir and return table-name, last-update, and latest-date to the working environment
 read_table_in_cache_dir <- function(table_name){
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
@@ -117,7 +117,7 @@ read_table_in_cache_dir <- function(table_name){
   return(list = list("updated" = updated, "latest_date" = latest_date, "field_name" = field_name))
 }
 
-#fx3: take the outputs from fx2 and return the structured API URL string
+#Take the outputs from fx2 and return the structured API URL string
 #date_min_conv (Note: this is copied from idm_polis_api)
 
 #' @param field_name The name of the field used for date filtering.
@@ -271,7 +271,7 @@ append_and_save <- function(query_output = query_output,
 }
 }
 
-# fx5: calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
+# Calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output,
                                    field_name,
                                    table_name){
@@ -308,7 +308,7 @@ get_update_cache_dates <- function(query_output,
   return(update_cache_dates)
 }
 
-#Feature: Validate POLIS Pull (#8): Create POLIS validation metadata and store in cache
+#Summarise POLIS metadata and store in cache
 get_polis_metadata <- function(query_output,
                                table_name,
                                categorical_max = 30){
@@ -431,7 +431,7 @@ metadata_comparison <- function(new_table_metadata,
   return(change_summary)
 }
 
-#If re_pull_polis_indicator is TRUE, then re-pull the complete table
+#If re_pull_polis_indicator is TRUE, then re-pull the complete table and update the cache
 
 polis_re_pull <- function(table_name,
                           field_name,
@@ -463,8 +463,15 @@ polis_re_pull <- function(table_name,
 }
 
 
-#Input function using fx1:fx5
-
+#Extract and save a single POLIS table:
+  #If table was previously pulled, move previous version to archive folder
+  #Use cache entry to determine range of data pull
+  #Pull data from POLIS
+  #Compare pulled data metadata to previous pulled data metadata to determine if a full re-pull of the table is needed
+    #If re-pull is indicated, then re-pull the full table
+  #Update cache entry
+  #Save a summary of changes between new data pull and previous data pull
+  
 #' @param folder      A string, the location of the polis data folder
 #' @param token       A string, the token for the API
 #' @param table_name  A string, matching the POLIS name of the requested data table

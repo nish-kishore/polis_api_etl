@@ -92,32 +92,73 @@ read_cache <- function(.file_name = table_name,
 }
 
 #Get user input for which table to pull, if not specified:
-prompt_user_input <- function(){
-  defaults <- load_defaults()
-  table_list <- c((defaults %>%
-                     filter(!grepl("Indicator", table_name) & !grepl("RefData", table_name)))$table_name_descriptive, "Indicator", "Reference Data")
-  indicator_list <- (defaults %>%
-                       filter(grepl("Indicator", table_name) & !grepl("RefData", table_name)) %>%
-                       mutate(table_name_descriptive = str_remove(table_name_descriptive, "Indicator: ")))$table_name_descriptive
-  reference_list <- (defaults %>%
-                       filter(grepl("RefData", table_name)) %>%
-                       mutate(table_name_descriptive = str_remove(table_name_descriptive, "Reference Data: ")))$table_name_descriptive
-  table_input <- table_list[utils::menu(table_list, title="Select a POLIS table to download:")]
-  if(table_input == "Indicator"){
-    indicator_input <- paste0("Indicator: ", indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")])
-    table_defaults <- defaults %>%
-      filter(indicator_input == table_name_descriptive)
+get_query_parameters <- function(table_name, 
+                              field_name, 
+                              id_vars, 
+                              download_size,
+                              table_name_descriptive,
+                              check_for_deleted_rows){
+  #Get user input for which table to pull if not specified
+  if(is.null(table_name) | is.null(field_name) | is.null(id_vars) | is.null(download_size)){
+    defaults <- load_defaults()
+    table_list <- c((defaults %>%
+                       filter(!grepl("Indicator", table_name) & !grepl("RefData", table_name)))$table_name_descriptive, "Indicator", "Reference Data")
+    indicator_list <- (defaults %>%
+                         filter(grepl("Indicator", table_name) & !grepl("RefData", table_name)) %>%
+                         mutate(table_name_descriptive = str_remove(table_name_descriptive, "Indicator: ")))$table_name_descriptive
+    reference_list <- (defaults %>%
+                         filter(grepl("RefData", table_name)) %>%
+                         mutate(table_name_descriptive = str_remove(table_name_descriptive, "Reference Data: ")))$table_name_descriptive
+    table_input <- table_list[utils::menu(table_list, title="Select a POLIS table to download:")]
+    if(table_input == "Indicator"){
+      indicator_input <- paste0("Indicator: ", indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")])
+      table_defaults <- defaults %>%
+        filter(indicator_input == table_name_descriptive)
+    }
+    if(table_input == "Reference Data"){
+      reference_input <- paste0("Reference Data: ", reference_list[utils::menu(reference_list, title="Select a Reference Table to download:")])
+      table_defaults <- defaults %>%
+        filter(reference_input == table_name_descriptive)
+    }
+    if(!(table_input %in% c("Indicator", "Reference Data"))){
+      table_defaults <- defaults %>%
+        filter(table_input == table_name_descriptive)
+    }
+    table_name <- table_defaults$table_name
+    field_name <- table_defaults$field_name
+    id_vars <- table_defaults$id_vars
+    download_size <- as.numeric(table_defaults$download_size)
   }
-  if(table_input == "Reference Data"){
-    reference_input <- paste0("Reference Data: ", reference_list[utils::menu(reference_list, title="Select a Reference Table to download:")])
-    table_defaults <- defaults %>%
-      filter(reference_input == table_name_descriptive)
-  }
-  if(!(table_input %in% c("Indicator", "Reference Data"))){
-    table_defaults <- defaults %>%
-      filter(table_input == table_name_descriptive)
-  }
-  return(table_defaults)
+  query_parameters <- list(table_name = table_name, 
+                           field_name = field_name, 
+                           id_vars = id_vars, 
+                           download_size = download_size,
+                           table_name_descriptive = table_name_descriptive,
+                           check_for_deleted_rows = check_for_deleted_rows)
+  
+  # #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
+  # init_polis_data_table(query_parameters$table_name, query_parameters$field_name)
+  # 
+  #Read the cache entry for the requested POLIS data table
+  
+  query_parameters <- append(query_parameters, list(updated = read_table_in_cache_dir(query_parameters$table_name)$updated))
+  query_parameters <- append(query_parameters, list(latest_date = read_table_in_cache_dir(query_parameters$table_name)$latest_date))
+  query_parameters <- append(query_parameters, list(prior_field_name = read_table_in_cache_dir(query_parameters$table_name)$field_name))
+  
+  #create query_parameters yaml
+  query_parameters_yaml <- file.path(load_specs()$polis_data_folder,'cache_dir','query_parameters.yaml')
+  yaml_out <- list()
+  yaml_out$table_name <- query_parameters$table_name
+  yaml_out$field_name <- query_parameters$field_name
+  yaml_out$id_vars <- query_parameters$id_vars
+  yaml_out$download_size <- query_parameters$download_size
+  yaml_out$table_name_descriptive <- query_parameters$table_name_descriptive
+  yaml_out$check_for_deleted_rows <- query_parameters$check_for_deleted_rows
+  yaml_out$updated <- query_parameters$updated
+  yaml_out$latest_date <- query_parameters$latest_date
+  yaml_out$prior_field_name <- query_parameters$prior_field_name
+  write_yaml(yaml_out, query_parameters_yaml)
+  
 }
 
 

@@ -189,7 +189,7 @@ create_url_array_id_section <- function(table_name = table_name,
 create_url_array_id_method <- function(table_name,
                                        id_vars,
                                        field_name,
-                                       min_date = min_date){
+                                       min_date){
   prior_scipen <- getOption("scipen")
   options(scipen = 999)
   
@@ -254,26 +254,6 @@ create_url_array_id_method <- function(table_name,
   urls <- create_url_array_id_section(table_name, id_section_table)
   options(scipen=prior_scipen)
   return(urls)
-}
-
-
-
-#Check if the specified id variable exists in the table:
-check_if_id_exists <- function(table_name,
-                               id_vars = "Id"){
-  url <-  paste0('https:/extranet.who.int/polis/api/v2/',
-                 paste0(table_name, "?"),
-                 '$select=', 
-                 paste(id_vars, collapse=", "),
-                 '&token=',load_specs()$polis$token) %>%
-    httr::modify_url()
-  
-  response <- call_url(url=url,
-                       error_action = "STOP")
-  
-  status <- as.character(response$status_code)
-  id_exists <- ifelse(status=="200", TRUE, FALSE)
-  return(id_exists)
 }
 
 #Get all ids for id-filter method

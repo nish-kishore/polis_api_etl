@@ -4,7 +4,7 @@
 get_table_data <- function(url, p){tryCatch({
   
   p()
-  result <- call_url(url=my_url2,
+  result <- call_url(url=url,
                       error_action = "RETURN NULL")
   
   if(is.null(result) == FALSE){
@@ -197,30 +197,3 @@ find_and_remove_deleted_obs <- function(full_idvars_output,
   return(new_complete_file)
 }
 
-#Call an individual URL until it succeeds or reaches a call limit
-  #input: URL
-  #output: API response
-call_url <- function(url,
-                     error_action = "STOP"){
-  status_code <- "x"
-  i <- 1
-  while(status_code != "200" & i < 10){
-    response <- NULL
-    response <- httr::GET(url, timeout(150))
-    if(is.null(response) == FALSE){
-      status_code <- as.character(response$status_code)
-    }
-    i <- i+1
-    if(i == 10){
-      if(error_action == "STOP"){
-        stop("Query halted. Repeated API call failure.")
-      }
-      if(error_action == "RETURN NULL"){
-        response <- NULL
-      }
-    }
-    if(status_code != "200"){Sys.sleep(10)}
-  }
-  rm(status_code)
-  return(response)
-}

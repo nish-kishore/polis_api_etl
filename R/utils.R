@@ -6,6 +6,14 @@ load_specs <- function(folder = Sys.getenv("polis_data_folder")){
   return(specs)
 }
 
+#' Load query parameters
+#' @param file A string
+#' @return auth/config object
+load_query_parameters <- function(folder = Sys.getenv("polis_data_folder")){
+  query_parameters <- read_yaml(file.path(folder,'cache_dir','query_parameters.yaml'))
+  return(query_parameters)
+}
+
 load_defaults <- function(){
   defaults <- as.data.frame(bind_rows(
     c(table_name_descriptive = "Activity", table_name = "Activity", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
@@ -138,4 +146,32 @@ load_defaults <- function(){
     c(table_name_descriptive = "Independent Monitoring", table_name = "Im", field_name = "None", id_vars ="Id", download_size = 1000)
   ))
   return(defaults)
+}
+
+#Call an individual URL until it succeeds or reaches a call limit
+#input: URL
+#output: API response
+call_url <- function(url,
+                     error_action = "STOP"){
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
+    response <- NULL
+    response <- httr::GET(url, timeout(150))
+    if(is.null(response) == FALSE){
+      status_code <- as.character(response$status_code)
+    }
+    i <- i+1
+    if(i == 10){
+      if(error_action == "STOP"){
+        stop("Query halted. Repeated API call failure.")
+      }
+      if(error_action == "RETURN NULL"){
+        response <- NULL
+      }
+    }
+    if(status_code != "200"){Sys.sleep(10)}
+  }
+  rm(status_code)
+  return(response)
 }

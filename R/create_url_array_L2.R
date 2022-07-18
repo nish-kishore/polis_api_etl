@@ -70,21 +70,8 @@ get_table_count <- function(table_name,
   }
   
   #Call my_url until the call succeeds or is tried 10 times:
-  status_code <- "x"
-  i <- 1
-  while(status_code != "200" & i < 10){
-    response <- NULL
-    response <- httr::GET(my_url, timeout(150))
-    if(is.null(response) == FALSE){
-      status_code <- as.character(response$status_code)
-    }
-    i <- i+1
-    if(i == 10){
-      stop("Query halted. Repeated API call failure.")
-    }
-    Sys.sleep(10)
-  }
-  rm(status_code)
+  response <- call_url(url = my_url,
+           error_action = "STOP")
   
   response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
@@ -165,7 +152,8 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
     httr::modify_url()
   # Get table size
   
-  response <- httr::GET(my_url, timeout(150))
+  response <- call_url(url=my_url,
+                       error_action = "STOP")
   
   table_size <- response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%
@@ -279,7 +267,11 @@ check_if_id_exists <- function(table_name,
                  paste(id_vars, collapse=", "),
                  '&token=',load_specs()$polis$token) %>%
     httr::modify_url()
-  status <- as.character(httr::GET(url, timeout(150))$status_code)
+  
+  response <- call_url(url=url,
+                       error_action = "STOP")
+  
+  status <- as.character(response$status_code)
   id_exists <- ifelse(status=="200", TRUE, FALSE)
   return(id_exists)
 }
@@ -322,21 +314,8 @@ create_url_array_idvars <- function(table_name = table_name,
                     "&$top=0") %>%
     httr::modify_url()
   
-  status_code <- "x"
-  i <- 1
-  while(status_code != "200" & i < 10){
-    response <- NULL
-    response <- httr::GET(my_url2, timeout(150))
-    if(is.null(response) == FALSE){
-      status_code <- as.character(response$status_code)
-    }
-    i <- i+1
-    if(i == 10){
-      stop("Query halted. Repeated API call failure.")
-    }
-    Sys.sleep(10)
-  }
-  rm(status_code)
+  response <- call_url(url=my_url2,
+                     error_action = "STOP")
   
   table_size <- response %>%
     httr::content(type='text',encoding = 'UTF-8') %>%

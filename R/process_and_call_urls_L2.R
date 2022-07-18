@@ -2,32 +2,10 @@
 #' @param url string of a single url
 #' @param p used as iterator in multicore processing
 get_table_data <- function(url, p){tryCatch({
-  status_code <- "x"
-  i <- 1
-  while(status_code != "200" & i < 10){
-    p()
-    result <- NULL
-    result <- httr::GET(url, timeout(150))
-    if(is.null(result) == FALSE){
-      status_code <- as.character(result$status_code)
-    }
-    i <- i+1
-    if(i == 10){
-      # if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))){
-      #   all_failed_urls <- readRDS(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
-      #   all_failed_urls <- c(all_failed_urls, url)
-      #   }
-      # if(file.exists(paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds")) == FALSE){
-      #   all_failed_urls <- url
-      # }
-      # write_rds(all_failed_urls, paste0(load_specs()$polis_data_folder, "/", table_name,"_failed_urls.rds"))
-      result <- NULL
-    }
-    if(status_code != "200"){
-      Sys.sleep(10)
-    }
-  }
-  rm(status_code)
+  
+  p()
+  result <- call_url(url=my_url2,
+                      error_action = "RETURN NULL")
   
   if(is.null(result) == FALSE){
     response_data <- result %>%
@@ -140,42 +118,12 @@ append_and_save <- function(query_output = query_output,
                                                id_vars = id_vars)
     }
     
-    #check that the combined total row number matches POLIS table row number before appending
-    #Get full table size for comparison to what was pulled via API, saved as "table_count2"
-    # my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
-    #                  paste0(table_name, "?"),
-    #                  "$inlinecount=allpages&$top=0",
-    #                  '&token=',load_specs()$polis$token) %>%
-    # httr::modify_url()
-    # 
-    # #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
-    # status_code <- "x"
-    # i <- 1
-    # while(status_code != "200" & i < 10){
-    #   result2 <- NULL
-    #   result2 <- httr::GET(my_url2, timeout(1))
-    #   if(is.null(result2) == FALSE){
-    #   status_code <- as.character(result2$status_code)
-    #   }
-    #   i <- i+1
-    #   if(i == 10){
-    #     stop("Query halted. Repeated API call failure.")
-    #   }
-    #   Sys.sleep(10)
-    # }
-    # rm(status_code)
-    # 
-    # result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
-    # table_count2 <- as.numeric(result_content2$odata.count)
     
-    #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
-    # if(table_count2 == nrow(old_polis) + nrow(query_output)){
     new_query_output <- query_output %>%
       bind_rows(old_polis)
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
     return(new_query_output)
-    # }
     
     #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
     #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
@@ -193,21 +141,8 @@ append_and_save <- function(query_output = query_output,
       httr::modify_url()
     
     #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
-    status_code <- "x"
-    i <- 1
-    while(status_code != "200" & i < 10){
-      result2 <- NULL
-      result2 <- httr::GET(my_url2, timeout(150))
-      if(is.null(result2) == FALSE){
-        status_code <- as.character(result2$status_code)
-      }
-      i <- i+1
-      if(i == 10){
-        stop("Query halted. Repeated API call failure.")
-      }
-      Sys.sleep(10)
-    }
-    rm(status_code)
+    result2 <- call_url(url=my_url2,
+                        error_action = "STOP")
     
     result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
     table_count2 <- as.numeric(result_content2$odata.count)
@@ -260,4 +195,32 @@ find_and_remove_deleted_obs <- function(full_idvars_output,
   new_complete_file <- new_complete_file %>%
     anti_join(deleted_obs, by=id_vars)
   return(new_complete_file)
+}
+
+#Call an individual URL until it succeeds or reaches a call limit
+  #input: URL
+  #output: API response
+call_url <- function(url,
+                     error_action = "STOP"){
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
+    response <- NULL
+    response <- httr::GET(url, timeout(150))
+    if(is.null(response) == FALSE){
+      status_code <- as.character(response$status_code)
+    }
+    i <- i+1
+    if(i == 10){
+      if(error_action == "STOP"){
+        stop("Query halted. Repeated API call failure.")
+      }
+      if(error_action == "RETURN NULL"){
+        response <- NULL
+      }
+    }
+    if(status_code != "200"){Sys.sleep(10)}
+  }
+  rm(status_code)
+  return(response)
 }

@@ -88,3 +88,176 @@ pb_mc_api_pull <- function(urls){
   return(result)
   stopCluster(n_cores)
 }
+
+#retry all urls that failed when calling a url array
+handle_failed_urls <- function(failed_urls,
+                               failed_url_filename,
+                               query_output, 
+                               retry = TRUE, 
+                               save = TRUE){
+  if(length(failed_urls) > 0){
+    if(retry == TRUE){
+      retry_query_output_list <- pb_mc_api_pull(failed_urls)
+      retry_query_output <- retry_query_output_list[[1]]
+      if(is.null(retry_query_output)){
+        retry_query_output <- data.frame(matrix(nrow=0, ncol=0))
+      }
+      failed_urls <- retry_query_output_list[[2]]
+      query_output <- query_output %>% 
+        bind_rows(retry_query_output)
+    }
+    if(save == TRUE){
+      write_rds(failed_urls, failed_url_filename)
+    }
+  }
+  return(query_output)
+}
+
+#Join the previously cached dataset for a table to the newly pulled dataset
+append_and_save <- function(query_output = query_output,
+                            id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
+                            table_name = table_name,
+                            full_idvars_output = full_idvars_output){
+  
+  id_vars <- as.vector(id_vars)
+  
+  #remove records that are no longer in the POLIS table from query_output
+  if(nrow(full_idvars_output) > 0){
+    query_output <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                                new_complete_file = query_output,
+                                                id_vars = id_vars)
+  }
+  #If the newly pulled dataset has any data, then read in the old file, remove rows from the old file that are in the new file, then bind the new file and old file
+  if(!is.null(query_output) & nrow(query_output) > 0 & file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+    old_polis <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))  %>%
+      mutate_all(.,as.character) %>%
+      #remove records that are in new file
+      anti_join(query_output, by=id_vars) 
+    #remove records that are no longer in the POLIS table from old_polis
+    if(nrow(full_idvars_output) > 0){
+      old_polis <- find_and_remove_deleted_obs(full_idvars_output = full_idvars_output,
+                                               new_complete_file = old_polis,
+                                               id_vars = id_vars)
+    }
+    
+    #check that the combined total row number matches POLIS table row number before appending
+    #Get full table size for comparison to what was pulled via API, saved as "table_count2"
+    # my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
+    #                  paste0(table_name, "?"),
+    #                  "$inlinecount=allpages&$top=0",
+    #                  '&token=',load_specs()$polis$token) %>%
+    # httr::modify_url()
+    # 
+    # #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
+    # status_code <- "x"
+    # i <- 1
+    # while(status_code != "200" & i < 10){
+    #   result2 <- NULL
+    #   result2 <- httr::GET(my_url2, timeout(1))
+    #   if(is.null(result2) == FALSE){
+    #   status_code <- as.character(result2$status_code)
+    #   }
+    #   i <- i+1
+    #   if(i == 10){
+    #     stop("Query halted. Repeated API call failure.")
+    #   }
+    #   Sys.sleep(10)
+    # }
+    # rm(status_code)
+    # 
+    # result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    # table_count2 <- as.numeric(result_content2$odata.count)
+    
+    #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
+    # if(table_count2 == nrow(old_polis) + nrow(query_output)){
+    new_query_output <- query_output %>%
+      bind_rows(old_polis)
+    #save to file
+    write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+    return(new_query_output)
+    # }
+    
+    #If the overall number of rows in the table is not equal to old and new combined, then stop and flag for investigation
+    #NOTE: instead of flagging, this could just trigger a re-pull of the full dataset
+    if(table_count2 != nrow(old_polis) + nrow(query_output)){
+      warning("Table is incomplete: check id_vars and field_name")
+    }
+  }
+  if(!is.null(query_output) & nrow(query_output) > 0 & !file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
+    #check that the combined total row number matches POLIS table row number before appending
+    #Get full table size for comparison to what was pulled via API, saved as "table_count2"
+    my_url2 <-  paste0('https:/extranet.who.int/polis/api/v2/',
+                       paste0(table_name, "?"),
+                       "$inlinecount=allpages&$top=0",
+                       '&token=',load_specs()$polis$token) %>%
+      httr::modify_url()
+    
+    #The below while() loop runs my_url2 through the API until it succeeds or up to 10 times. If 10 try limit is reached, then the process is halted.
+    status_code <- "x"
+    i <- 1
+    while(status_code != "200" & i < 10){
+      result2 <- NULL
+      result2 <- httr::GET(my_url2, timeout(150))
+      if(is.null(result2) == FALSE){
+        status_code <- as.character(result2$status_code)
+      }
+      i <- i+1
+      if(i == 10){
+        stop("Query halted. Repeated API call failure.")
+      }
+      Sys.sleep(10)
+    }
+    rm(status_code)
+    
+    result_content2 <- httr::content(result2, type='text',encoding = 'UTF-8') %>% jsonlite::fromJSON()
+    table_count2 <- as.numeric(result_content2$odata.count)
+    
+    #If the overall number of rows in the table is equal to the rows in the old dataset (with new rows removed) + the rows in the new dataset, then combine the two and save
+    # if(table_count2 == nrow(query_output)){
+    new_query_output <- query_output 
+    #save to file
+    write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+    return(new_query_output)
+    # }
+    if(table_count2 != nrow(query_output)){
+      warning("Table is incomplete: check id_vars and field_name")
+    }
+  }
+}
+
+#Get all IDs in table, used to identify deleted IDs since the last download
+get_idvars_only <- function(table_name,
+                            id_vars){
+  urls <- create_url_array_idvars(table_name, id_vars)
+  print("Checking for deleted Ids in the full table:")
+  query_start_time <- Sys.time()
+  query_output_list <- pb_mc_api_pull(urls)
+  query_output <- query_output_list[[1]]
+  if(is.null(query_output)){
+    query_output <- data.frame(matrix(nrow=0, ncol=0))
+  }
+  failed_urls <- query_output_list[[2]]
+  query_output <- handle_failed_urls(failed_urls,
+                                     file.path(load_specs()$polis_data_folder, paste0(table_name,"_full_id_set_failed_urls.rds")),
+                                     query_output,
+                                     retry = TRUE,
+                                     save = TRUE)
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+  # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
+  return(query_output)
+}
+
+#function to remove the obs deleted from the POLIS table from the saved table
+find_and_remove_deleted_obs <- function(full_idvars_output,
+                                        new_complete_file,
+                                        id_vars){
+  id_vars <- as.vector(id_vars)
+  new_complete_file_idvars <- new_complete_file %>%
+    select(id_vars)
+  deleted_obs <- new_complete_file_idvars %>%
+    anti_join(full_idvars_output, by=id_vars)
+  new_complete_file <- new_complete_file %>%
+    anti_join(deleted_obs, by=id_vars)
+  return(new_complete_file)
+}

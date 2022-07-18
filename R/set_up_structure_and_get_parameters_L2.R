@@ -253,3 +253,28 @@ load_defaults <- function(){
   ))
   return(defaults)
 }
+
+#Run a simple API call to check if the user-provided token is valid
+validate_token <- function(token = token){
+  my_url_test <-  paste0('https:/extranet.who.int/polis/api/v2/',
+                         'Case?',
+                         "$inlinecount=allpages&$top=0",
+                         '&token=',token) %>%
+    httr::modify_url()
+  
+  result_test <- as.character(httr::GET(my_url_test)$status, timeout(150))
+  valid_token <- TRUE
+  if(result_test != "200"){
+    valid_token <- FALSE
+  }
+  return(valid_token)
+}
+
+
+#' Load authorizations and local config
+#' @param file A string
+#' @return auth/config object
+load_specs <- function(folder = Sys.getenv("polis_data_folder")){
+  specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
+  return(specs)
+}

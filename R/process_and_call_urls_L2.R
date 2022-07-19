@@ -160,29 +160,6 @@ append_and_save <- function(query_output = query_output,
   }
 }
 
-#Get all IDs in table, used to identify deleted IDs since the last download
-get_idvars_only <- function(table_name = load_query_parameters()$table_name,
-                            id_vars = load_query_parameters()$id_vars){
-  urls <- create_url_array_combined(table_name, id_vars, method="id_only")
-  print("Checking for deleted Ids in the full table:")
-  query_start_time <- Sys.time()
-  query_output_list <- pb_mc_api_pull(urls)
-  query_output <- query_output_list[[1]]
-  if(is.null(query_output)){
-    query_output <- data.frame(matrix(nrow=0, ncol=0))
-  }
-  failed_urls <- query_output_list[[2]]
-  query_output <- handle_failed_urls(failed_urls,
-                                     file.path(load_specs()$polis_data_folder, paste0(table_name,"_full_id_set_failed_urls.rds")),
-                                     query_output,
-                                     retry = TRUE,
-                                     save = TRUE)
-  query_stop_time <- Sys.time()
-  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-  # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
-  return(query_output)
-}
-
 #function to remove the obs deleted from the POLIS table from the saved table
 find_and_remove_deleted_obs <- function(full_idvars_output,
                                         new_complete_file,
@@ -202,6 +179,7 @@ call_urls_combined <- function(urls,
                                type){
   if(type == "full"){print("Pulling all variables:")}
   if(type == "id_filter"){print("Pulling ID variables:")}
+  if(type == "id_only"){print("Checking for deleted Ids in the full table:")}
   query_start_time <- Sys.time()
   query_output <- data.frame(matrix(nrow=0, ncol=0))
   query_output_list <- pb_mc_api_pull(urls)

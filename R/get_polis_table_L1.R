@@ -87,38 +87,15 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     #Read the cache entry for the requested POLIS data table
     #Create an API URL and use it to query POLIS
     #If there is no Id or date field, then create a url array using the skip/top method:
-    if(load_query_parameters()$field_name == "None"){
-      urls <- create_url_array(table_name = load_query_parameters()$table_name,
-                               field_name = load_query_parameters()$field_name,
-                               min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
-                               download_size = load_query_parameters()$download_size)
-    }
-    #If there is an Id and date field, then create a url array using the Id-filter method
-    if(load_query_parameters()$field_name != "None"){
-      urls <- create_url_array_id_method(table_name = load_query_parameters()$table_name,
-                                         field_name = load_query_parameters()$field_name,
-                                         min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
-                                         id_vars = load_query_parameters()$id_vars)
-    }
-    
-    #Call each url in 'urls' array:
-    query_start_time <- Sys.time()
-    query_output_list <- pb_mc_api_pull(urls)
-    query_output <- query_output_list[[1]]
-    if(is.null(query_output)){
-      query_output <- data.frame(matrix(nrow=0, ncol=0))
-    }
-    #If there are any failed urls, re-try them
-    failed_urls <- query_output_list[[2]]
-    query_output <- handle_failed_urls(failed_urls,
-                                       file.path(load_specs()$polis_data_folder, paste0(load_query_parameters()$table_name,"_repull_failed_urls.rds")),
-                                       query_output,
-                                       retry = TRUE,
-                                       save = TRUE)
-    query_stop_time <- Sys.time()
-    query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-    
-    if(!is.null(query_output) & nrow(query_output)>0){
+    urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
+                                      min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
+                                      field_name = load_query_parameters()$field_name,
+                                      download_size = load_query_parameters()$download_size,
+                                      id_vars = load_query_parameters()$id_vars,
+                                      method = NULL)
+    query_output <- call_urls_combined(urls = urls,
+                                       type = "full")
+    if(!is.null(query_output)){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
   }

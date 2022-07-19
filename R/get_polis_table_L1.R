@@ -38,6 +38,15 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Archive all data files in the POLIS data folder
   archive_last_data(load_query_parameters()$table_name)
   
+  #If field_name has changed then indicate re-pull
+  #if a row with the table_name exists within cache, then pull the values from that row
+  field_name_change <- NULL
+  field_name_change <- load_query_parameters()$field_name != load_query_parameters()$prior_field_name
+  
+  #If a re-pull was indicated due to a field_name change, then reset the cache to initiate:
+  polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
+                            field_name = load_query_parameters()$field_name,
+                            re_pull_polis_indicator = field_name_change)
   #Create an array of API URLs
   urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
                                     min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
@@ -61,25 +70,17 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   
   re_pull_polis_indicator <- FALSE
-  
   #If both old and new metadata summaries exist, then compare them. If there are differences, then set the re_pull_polis_indicator to trigger re-pull of entire table
   if(!is.null(old_table_metadata) &
      !is.null(new_table_metadata)){
     re_pull_polis_indicator <- metadata_comparison(new_table_metadata = new_table_metadata,
                                                    old_table_metadata = old_table_metadata)$re_pull_polis_indicator
   }
-  
-  #If field_name has changed then indicate re-pull
-  #if a row with the table_name exists within cache, then pull the values from that row
-  field_name_change <- NULL
-  field_name_change <- load_query_parameters()$field_name != load_query_parameters()$prior_field_name
-  
-  #If a re-pull was indicated in the metadata comparison, then re-pull the full table
   polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
                             field_name = load_query_parameters()$field_name,
-                            re_pull_polis_indicator = field_name_change)
+                            re_pull_polis_indicator = re_pull_polis_indicator)
   
-  if(field_name_change == TRUE){
+  if(re_pull_polis_indicator == TRUE){
     urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
                                       min_date = as.Date("1900-01-01"),
                                       field_name = load_query_parameters()$field_name,

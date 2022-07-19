@@ -15,8 +15,8 @@ update_cache <- function(.file_name,
 
 # Calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
 get_update_cache_dates <- function(query_output,
-                                   field_name,
-                                   table_name){
+                                   field_name = load_query_parameters()$field_name,
+                                   table_name = load_query_parameters()$table_name){
   
   #If the newly pulled dataset contains any data, then pull the latest_date as the max of field_name in it
   if(!is.null(query_output) && nrow(query_output) > 0 && field_name %in% colnames(query_output)){
@@ -51,7 +51,7 @@ get_update_cache_dates <- function(query_output,
 }
 
 #Function that moves the rds files in the polis_data folder to an archive folder
-archive_last_data <- function(table_name,
+archive_last_data <- function(table_name = load_query_parameters()$table_name,
                               archive_folder = NULL, #folder pathway where the datasets will be archived
                               n_archive = 3 #Number of most-recent datasets to save in archive, per table
 ){
@@ -112,7 +112,7 @@ archive_last_data <- function(table_name,
 }
 
 #Add the metadata stored in cache to a table as an attribute, so that table-specific metadata can be retained through archiving / retrieval from archive
-add_cache_attributes <- function(table_name){
+add_cache_attributes <- function(table_name = load_query_parameters()$table_name){
   #Get list of rds 
   # current_files <- list.files(load_specs()$polis_data_folder) %>%
   #   stringr::str_subset(., pattern=".rds") %>%
@@ -231,8 +231,8 @@ update_cache_from_files <- function(){
 
 #If re_pull_polis_indicator is TRUE, then re-pull the complete table and update the cache
 
-polis_re_pull <- function(table_name,
-                          field_name,
+polis_re_pull <- function(table_name = load_query_parameters()$table_name,
+                          field_name = load_query_parameters()$field_name,
                           re_pull_polis_indicator){
   
   if(re_pull_polis_indicator == TRUE){

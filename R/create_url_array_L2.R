@@ -5,7 +5,8 @@
 #' @return String compatible with API v2 syntax.
 
 #convert field_name and date_min to the format needed for API query
-date_min_conv <- function(field_name, date_min){
+date_min_conv <- function(field_name = load_query_parameters()$field_name, 
+                          date_min = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   if(is.null(field_name) || is.null(date_min)) return(NULL)
   paste0("(",
          paste0(field_name, " ge DateTime'",
@@ -17,7 +18,7 @@ date_min_conv <- function(field_name, date_min){
 
 #' @param field_name The name of the field used for date filtering.
 #' @return String compatible with API v2 syntax.
-date_null_conv <- function(field_name){
+date_null_conv <- function(field_name = load_query_parameters()$field_name){
   if(is.null(field_name)) return(NULL)
   paste0("(",
          paste0(field_name, " eq null",
@@ -29,8 +30,8 @@ date_null_conv <- function(field_name){
 #' @param field_name The date field to which to apply the date criteria, unique to each data type.
 #' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
 #' @param ... other arguments to be passed to the api
-make_url_general <- function(field_name,
-                             min_date){
+make_url_general <- function(field_name = load_query_parameters()$field_name,
+                             min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   
   paste0("(",
          date_min_conv(field_name, min_date),
@@ -41,9 +42,9 @@ make_url_general <- function(field_name,
 
 #' create a URL to collect the count where field_name is not missing
 #' @param
-get_table_count <- function(table_name,
+get_table_count <- function(table_name = load_query_parameters()$table_name,
                             min_date = as_date("1900-01-01"),
-                            field_name){
+                            field_name = load_query_parameters()$field_name){
   
   filter_url_conv <- make_url_general(
     field_name,
@@ -88,10 +89,10 @@ get_table_count <- function(table_name,
 #' @param min_date 'date' object of earliest date acceptable for filter
 #' @param field_name string of field name used to filter date
 #' @param download_size integer specifying # of rows to download
-create_url_array <- function(table_name,
-                             min_date = x$latest_date,
-                             field_name = x$field_name,
-                             download_size = as.numeric(download_size)
+create_url_array <- function(table_name = load_query_parameters()$table_name,
+                             min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
+                             field_name = load_query_parameters()$field_name,
+                             download_size = as.numeric(load_query_parameters()$download_size)
 ){
   #first, create a set of urls with the date filter
   filter_url_conv <- make_url_general(
@@ -130,10 +131,10 @@ create_url_array <- function(table_name,
 }
 
 #Create url array using ID filter method
-create_url_array_idvars_and_field_name <- function(table_name = table_name,
-                                                   id_vars = id_vars,
-                                                   field_name = field_name,
-                                                   min_date = min_date){
+create_url_array_idvars_and_field_name <- function(table_name = load_query_parameters()$table_name,
+                                                   id_vars = load_query_parameters()$id_vars,
+                                                   field_name = load_query_parameters()$field_name,
+                                                   min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   # construct general URL
   filter_url_conv <- paste0("(",
                             date_min_conv(field_name, min_date),
@@ -170,7 +171,7 @@ create_url_array_idvars_and_field_name <- function(table_name = table_name,
 
 
 
-create_url_array_id_section <- function(table_name = table_name,
+create_url_array_id_section <- function(table_name = load_query_parameters()$table_name,
                                         id_section_table = id_section_table){
   urls <- c()
   for(i in id_section_table$filter_url_conv){
@@ -186,10 +187,10 @@ create_url_array_id_section <- function(table_name = table_name,
 }
 
 
-create_url_array_id_method <- function(table_name,
-                                       id_vars,
-                                       field_name,
-                                       min_date){
+create_url_array_id_method <- function(table_name = load_query_parameters()$table_name,
+                                       id_vars = load_query_parameters()$id_vars,
+                                       field_name = load_query_parameters()$field_name,
+                                       min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   prior_scipen <- getOption("scipen")
   options(scipen = 999)
   
@@ -257,10 +258,10 @@ create_url_array_id_method <- function(table_name,
 }
 
 #Get all ids for id-filter method
-get_ids_for_url_array <- function(table_name,
-                                  id_vars,
-                                  field_name,
-                                  min_date = min_date){
+get_ids_for_url_array <- function(table_name = load_query_parameters()$table_name,
+                                  id_vars = load_query_parameters()$id_vars,
+                                  field_name = load_query_parameters()$field_name,
+                                  min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
   query_output_list <- pb_mc_api_pull(urls)
   id_list <- query_output_list[[1]]
@@ -277,8 +278,8 @@ get_ids_for_url_array <- function(table_name,
 #for any table, pull just the idvars for a check for deletions in POLIS and a
 # a double-check for any additions in POLIS not captured by the date_field query
 
-create_url_array_idvars <- function(table_name = table_name,
-                                    id_vars = id_vars){
+create_url_array_idvars <- function(table_name = load_query_parameters()$table_name,
+                                    id_vars = load_query_parameters()$id_vars){
   # construct general URL
   my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
                    paste0(table_name, "?"),
@@ -306,3 +307,30 @@ create_url_array_idvars <- function(table_name = table_name,
   urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
   return(urls)
 }
+
+
+#Single function to create a url array by any method, avoiding repetition of some steps
+
+create_url_array_combined <- function(table_name = load_query_parameters()$table_name,
+                                      min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
+                                      field_name = load_query_parameters()$field_name,
+                                      download_size = as.numeric(load_query_parameters()$download_size),
+                                      id_vars = load_query_parameters()$id_vars,
+                                      method = NULL){
+  #Identify which method to use based on table_name, field_name, and id_vars  
+  if(is.null(method)){
+    if(load_query_parameters()$field_name == "None" |
+       grepl("IndicatorValue", table_name) == TRUE){
+      method <- "skip_top"
+    }
+    if(load_query_parameters()$field_name != "None" &
+       grepl("IndicatorValue", table_name) == FALSE){
+      method <- "id_filter"
+    }
+  }
+  if(method == "skip_top"){}
+  if(method == "id_filter")
+  if(method == "id_only"){}
+  #Get table size
+}
+                                      

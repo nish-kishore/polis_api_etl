@@ -1,5 +1,5 @@
-compare_final_to_archive <- function(table_name,
-                                     id_vars,
+compare_final_to_archive <- function(table_name = load_query_parameters()$table_name,
+                                     id_vars = load_query_parameters()$id_vars,
                                      categorical_max = 30){
   id_vars <- as.vector(id_vars)
   #Load new_file
@@ -83,7 +83,7 @@ compare_final_to_archive <- function(table_name,
 
 
 
-save_change_summary <- function(table_name, 
+save_change_summary <- function(table_name = load_query_parameters()$table_name, 
                                 change_summary,
                                 change_log_folder = NULL,
                                 n_change_log = 30){
@@ -230,7 +230,7 @@ print_latest_change_log_summary <- function(){
 }
 #Summarise POLIS metadata and store in cache
 get_polis_metadata <- function(query_output,
-                               table_name,
+                               table_name = load_query_parameters()$table_name,
                                categorical_max = 30){
   if(nrow(query_output)>0){
     #summarise var names and classes

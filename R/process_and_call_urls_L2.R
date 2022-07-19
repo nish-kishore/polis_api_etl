@@ -93,8 +93,8 @@ handle_failed_urls <- function(failed_urls,
 
 #Join the previously cached dataset for a table to the newly pulled dataset
 append_and_save <- function(query_output = query_output,
-                            id_vars = id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
-                            table_name = table_name,
+                            id_vars = load_query_parameters()$id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
+                            table_name = load_query_parameters()$table_name,
                             full_idvars_output = full_idvars_output){
   
   id_vars <- as.vector(id_vars)
@@ -161,8 +161,8 @@ append_and_save <- function(query_output = query_output,
 }
 
 #Get all IDs in table, used to identify deleted IDs since the last download
-get_idvars_only <- function(table_name,
-                            id_vars){
+get_idvars_only <- function(table_name = load_query_parameters()$table_name,
+                            id_vars = load_query_parameters()$id_vars){
   urls <- create_url_array_idvars(table_name, id_vars)
   print("Checking for deleted Ids in the full table:")
   query_start_time <- Sys.time()

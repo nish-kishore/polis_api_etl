@@ -45,7 +45,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
      grepl("IndicatorValue", table_name) == TRUE){
     urls <- create_url_array(table_name = load_query_parameters()$table_name,
                              field_name = load_query_parameters()$field_name,
-                             min_date = load_query_parameters()$latest_date,
+                             min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
                              download_size = load_query_parameters()$download_size)
   }
   if(load_query_parameters()$field_name != "None" &
@@ -122,14 +122,14 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     if(load_query_parameters()$field_name == "None"){
       urls <- create_url_array(table_name = load_query_parameters()$table_name,
                                field_name = load_query_parameters()$field_name,
-                               min_date = load_query_parameters()$latest_date,
+                               min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
                                download_size = load_query_parameters()$download_size)
     }
     #If there is an Id and date field, then create a url array using the Id-filter method
     if(load_query_parameters()$field_name != "None"){
       urls <- create_url_array_id_method(table_name = load_query_parameters()$table_name,
                                          field_name = load_query_parameters()$field_name,
-                                         min_date = load_query_parameters()$latest_date,
+                                         min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
                                          id_vars = load_query_parameters()$id_vars)
     }
     
@@ -154,6 +154,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
   }
+  
+  #Flag: This can be deleted once the id_list_temporary_file is moved out of being a written file
   #If the temporary id_list file exists then delete it
   if(file.exists(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))){
     file.remove(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))

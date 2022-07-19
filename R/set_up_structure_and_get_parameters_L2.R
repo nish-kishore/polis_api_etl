@@ -137,12 +137,14 @@ get_query_parameters <- function(table_name,
                            check_for_deleted_rows = check_for_deleted_rows)
   
   # #Create cache entry and blank dataframe for a POLIS data table if it does not already exist
-  # init_polis_data_table(query_parameters$table_name, query_parameters$field_name)
-  # 
+  init_polis_data_table(query_parameters$table_name, query_parameters$field_name)
+
   #Read the cache entry for the requested POLIS data table
-  
-  query_parameters <- append(query_parameters, list(updated = read_table_in_cache_dir(query_parameters$table_name)$updated))
-  query_parameters <- append(query_parameters, list(latest_date = read_table_in_cache_dir(query_parameters$table_name)$latest_date))
+  updated <- read_table_in_cache_dir(query_parameters$table_name)$updated
+  latest_date <- read_table_in_cache_dir(query_parameters$table_name)$latest_date
+  if(is.na(latest_date)){latest_date <- "1900-01-01"}
+  query_parameters <- append(query_parameters, list(updated = updated))
+  query_parameters <- append(query_parameters, list(latest_date = latest_date))
   query_parameters <- append(query_parameters, list(prior_field_name = read_table_in_cache_dir(query_parameters$table_name)$field_name))
   
   #create query_parameters yaml

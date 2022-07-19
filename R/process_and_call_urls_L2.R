@@ -117,6 +117,7 @@ append_and_save <- function(query_output = query_output,
         anti_join(full_idvars_output, by=id_vars)
       new_query_output <- new_query_output %>%
         anti_join(deleted_obs, by=id_vars)
+      print(paste0("Check for deleted records found and removed ", nrow(deleted_obs), " records from the previously saved table."))
     }
     
     #save to file
@@ -190,6 +191,9 @@ call_urls_combined <- function(urls,
   query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
   if(type == "full" & !is.null(query_output)){
     print(paste0("Downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+  }
+  if(type == "re-pull" & !is.null(query_output)){
+    print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
   }
   return(query_output)
 }

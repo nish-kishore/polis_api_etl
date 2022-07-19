@@ -87,10 +87,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                       id_vars = load_query_parameters()$id_vars,
                                       method = NULL)
     query_output <- call_urls_combined(urls = urls,
-                                       type = "full")
-    if(!is.null(query_output)){
-      print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
-    }
+                                       type = "re-pull")
   }
   
   #Combine the query output with the old dataset and save
@@ -100,7 +97,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
                                       id_vars = load_query_parameters()$id_vars,
                                       method="id_only")
-    full_idvars_output <- call_urls_combined(urls)
+    full_idvars_output <- call_urls_combined(urls, type="id_only")
   }
   
   #Combine the newly pulled dataset with the old dataset and save to folder

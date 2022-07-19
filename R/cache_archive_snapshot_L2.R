@@ -231,7 +231,7 @@ update_cache_from_files <- function(){
 
 #If re_pull_polis_indicator is TRUE, then re-pull the complete table and update the cache
 
-polis_re_pull <- function(table_name = load_query_parameters()$table_name,
+polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table_name,
                           field_name = load_query_parameters()$field_name,
                           re_pull_polis_indicator){
   

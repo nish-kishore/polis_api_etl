@@ -73,20 +73,13 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #if a row with the table_name exists within cache, then pull the values from that row
   field_name_change <- NULL
   field_name_change <- load_query_parameters()$field_name != load_query_parameters()$prior_field_name
-  if(field_name_change == TRUE){
-    re_pull_polis_indicator <- TRUE
-  }
   
   #If a re-pull was indicated in the metadata comparison, then re-pull the full table
-  polis_re_pull(table_name = load_query_parameters()$table_name,
-                field_name = load_query_parameters()$field_name,
-                re_pull_polis_indicator = re_pull_polis_indicator)
+  polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
+                            field_name = load_query_parameters()$field_name,
+                            re_pull_polis_indicator = field_name_change)
   
-  if(re_pull_polis_indicator == TRUE){
-    
-    #Read the cache entry for the requested POLIS data table
-    #Create an API URL and use it to query POLIS
-    #If there is no Id or date field, then create a url array using the skip/top method:
+  if(field_name_change == TRUE){
     urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
                                       min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
                                       field_name = load_query_parameters()$field_name,

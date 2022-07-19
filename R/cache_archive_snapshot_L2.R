@@ -257,5 +257,17 @@ polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table
         file.remove(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       }
     }
+    updated <- read_table_in_cache_dir(query_parameters$table_name)$updated
+    latest_date <- read_table_in_cache_dir(query_parameters$table_name)$latest_date
+    if(is.na(latest_date)){latest_date <- "1900-01-01"}
+    
+    #read in yaml
+    query_parameters_yaml <- load_query_parameters()
+    #modify yaml
+    query_parameters_yaml$updated <- updated
+    query_parameters_yaml$latest_date <- latest_date
+    query_parameters_yaml$prior_field_name <- field_name
+    #save yaml
+    write_yaml(query_parameters_yaml, file.path(load_specs()$polis_data_folder,'cache_dir','query_parameters.yaml'))
   }
 }

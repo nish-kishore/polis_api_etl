@@ -32,30 +32,19 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                        table_name_descriptive = table_name_descriptive,
                        check_for_deleted_rows = check_for_deleted_rows)
                       
-  
-  
   cache_dir <- file.path(folder, "cache_dir")
   cache_file <- file.path(cache_dir, "cache.rds")
   
   #Archive all data files in the POLIS data folder
   archive_last_data(load_query_parameters()$table_name)
   
-  #Create an API URL and use it to query POLIS
-  if(load_query_parameters()$field_name == "None" |
-     grepl("IndicatorValue", table_name) == TRUE){
-    urls <- create_url_array(table_name = load_query_parameters()$table_name,
-                             field_name = load_query_parameters()$field_name,
-                             min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
-                             download_size = load_query_parameters()$download_size)
-  }
-  if(load_query_parameters()$field_name != "None" &
-     grepl("IndicatorValue", load_query_parameters()$table_name) == FALSE){
-    print("Pulling ID variables:")
-    urls <- create_url_array_id_method(table_name = load_query_parameters()$table_name,
-                                       field_name = load_query_parameters()$field_name,
-                                       min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
-                                       id_vars = load_query_parameters()$id_vars)
-  }
+  #Create an array of API URLs
+  urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
+                                    min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),
+                                    field_name = load_query_parameters()$field_name,
+                                    download_size = load_query_parameters()$download_size,
+                                    id_vars = load_query_parameters()$id_vars,
+                                    method = NULL)
   print("Pulling all variables:")
   query_start_time <- Sys.time()
   query_output <- data.frame(matrix(nrow=0, ncol=0))
@@ -153,12 +142,6 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     if(!is.null(query_output) & nrow(query_output)>0){
       print(paste0("Metadata or field_name changed from cached version: Re-downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
     }
-  }
-  
-  #Flag: This can be deleted once the id_list_temporary_file is moved out of being a written file
-  #If the temporary id_list file exists then delete it
-  if(file.exists(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))){
-    file.remove(file.path(load_specs()$polis_data_folder, "id_list_temporary_file.rds"))
   }
   
   #Combine the query output with the old dataset and save

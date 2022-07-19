@@ -119,6 +119,7 @@ create_url_array_combined <- function(table_name = load_query_parameters()$table
   #Create sequence for URLs
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
   if(method == "id_filter"){
+    print("Pulling ID variables:")
     query_output_list <- pb_mc_api_pull(urls)
     id_list <- query_output_list[[1]]
     id_list_failed_urls <- query_output_list[[2]]

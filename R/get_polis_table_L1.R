@@ -104,8 +104,10 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Get a list of all obs id_vars in the full table (for removing deletions in append_and_save)
   full_idvars_output <- data.frame(matrix(nrow=0, ncol=0))
   if(check_for_deleted_rows == TRUE){
-    full_idvars_output <- get_idvars_only(table_name = load_query_parameters()$table_name,
-                                          id_vars = load_query_parameters()$id_vars)
+    urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
+                                      id_vars = load_query_parameters()$id_vars,
+                                      method="id_only")
+    full_idvars_output <- call_urls_combined(urls)
   }
   
   #Combine the newly pulled dataset with the old dataset and save to folder

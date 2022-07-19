@@ -197,3 +197,37 @@ find_and_remove_deleted_obs <- function(full_idvars_output,
   return(new_complete_file)
 }
 
+#combine calling urls and processing output into a single function
+call_urls_combined <- function(urls,
+                               type){
+  if(type == "full"){print("Pulling all variables:")}
+  if(type == "id_filter"){print("Pulling ID variables:")}
+  query_start_time <- Sys.time()
+  query_output <- data.frame(matrix(nrow=0, ncol=0))
+  query_output_list <- pb_mc_api_pull(urls)
+  query_output <- query_output_list[[1]]
+  if(is.null(query_output)){
+    query_output <- data.frame(matrix(nrow=0, ncol=0))
+  }
+  failed_urls <- query_output_list[[2]]
+  if(type == "full"){
+    failed_url_filename <- file.path(load_specs()$polis_data_folder, paste0(load_query_parameters()$table_name,"_failed_urls.rds"))
+  }
+  if(type == "id_filter"){
+    failed_url_filename <- file.path(load_specs()$polis_data_folder, paste0(load_query_parameters()$table_name,"_id_filter_failed_urls.rds"))
+  }
+  if(type == "id_only"){
+    failed_url_filename <- file.path(load_specs()$polis_data_folder, paste0(load_query_parameters()$table_name,"_id_only_failed_urls.rds"))
+  }
+  query_output <- handle_failed_urls(failed_urls,
+                                     failed_url_filename,
+                                     query_output,
+                                     retry = TRUE,
+                                     save = TRUE)
+  query_stop_time <- Sys.time()
+  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
+  if(type == "full" & !is.null(query_output)){
+    print(paste0("Downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
+  }
+  return(query_output)
+}

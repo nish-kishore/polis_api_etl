@@ -45,31 +45,10 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                     download_size = load_query_parameters()$download_size,
                                     id_vars = load_query_parameters()$id_vars,
                                     method = NULL)
-  print("Pulling all variables:")
-  query_start_time <- Sys.time()
-  query_output <- data.frame(matrix(nrow=0, ncol=0))
-  query_output_list <- pb_mc_api_pull(urls)
-  query_output <- query_output_list[[1]]
-  if(is.null(query_output)){
-    query_output <- data.frame(matrix(nrow=0, ncol=0))
-  }
-  failed_urls <- query_output_list[[2]]
-  query_output <- handle_failed_urls(failed_urls,
-                                     file.path(load_specs()$polis_data_folder, paste0(load_query_parameters()$table_name,"_failed_urls.rds")),
-                                     query_output,
-                                     retry = TRUE,
-                                     save = TRUE)
-  query_stop_time <- Sys.time()
-  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-  
+  query_output <- call_urls_combined(urls = urls,
+                                     type = "full")
   new_table_metadata <- NULL
   if(!is.null(query_output) & nrow(query_output) != 0){
-    if(is.null(load_query_parameters()$table_name_descriptive)){
-      print(paste0("Downloaded ", nrow(query_output)," rows from ",load_query_parameters()$table_name," Table in ", query_time[[1]], " ", units(query_time),"."))
-    }
-    if(!is.null(load_query_parameters()$table_name_descriptive)){
-      print(paste0("Downloaded ", nrow(query_output)," rows from ",table_name_descriptive," Table in ", query_time[[1]], " ", units(query_time),"."))
-    }
     new_table_metadata <- get_polis_metadata(query_output = query_output,
                                              table_name = load_query_parameters()$table_name)
   }

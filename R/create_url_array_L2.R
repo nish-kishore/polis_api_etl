@@ -119,15 +119,8 @@ create_url_array_combined <- function(table_name = load_query_parameters()$table
   #Create sequence for URLs
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
   if(method == "id_filter"){
-    print("Pulling ID variables:")
-    query_output_list <- pb_mc_api_pull(urls)
-    id_list <- query_output_list[[1]]
-    id_list_failed_urls <- query_output_list[[2]]
-    id_list <- handle_failed_urls(id_list_failed_urls,
-                                  file.path(load_specs()$polis_data_folder, paste0(table_name,"_id_list_failed_urls.rds")),
-                                  id_list,
-                                  retry = TRUE,
-                                  save = TRUE)
+    id_list <- call_urls_combined(urls = urls,
+                                       type = "id_filter")
     id_list2 <- id_list %>% 
       select(id_vars) %>%
       unique() %>%

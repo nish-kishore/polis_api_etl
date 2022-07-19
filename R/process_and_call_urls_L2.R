@@ -163,7 +163,7 @@ append_and_save <- function(query_output = query_output,
 #Get all IDs in table, used to identify deleted IDs since the last download
 get_idvars_only <- function(table_name = load_query_parameters()$table_name,
                             id_vars = load_query_parameters()$id_vars){
-  urls <- create_url_array_idvars(table_name, id_vars)
+  urls <- create_url_array_combined(table_name, id_vars, method="id_only")
   print("Checking for deleted Ids in the full table:")
   query_start_time <- Sys.time()
   query_output_list <- pb_mc_api_pull(urls)

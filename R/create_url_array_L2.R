@@ -118,9 +118,9 @@ create_url_array_combined <- function(table_name = load_query_parameters()$table
   
   #Create sequence for URLs
   urls <- paste0(my_url, "&$top=", as.numeric(download_size), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(download_size)))
-  if(method == "id_filter"){
+  if(method == "id_filter" & table_size > 0){
     id_list <- call_urls_combined(urls = urls,
-                                       type = "id_filter")
+                                 type = "id_filter")
     id_list2 <- id_list %>% 
       select(id_vars) %>%
       unique() %>%

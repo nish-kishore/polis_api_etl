@@ -165,9 +165,8 @@ find_and_remove_deleted_obs <- function(full_idvars_output,
                                         new_complete_file,
                                         id_vars){
   id_vars <- as.vector(id_vars)
-  new_complete_file_idvars <- new_complete_file %>%
-    select(id_vars)
-  deleted_obs <- new_complete_file_idvars %>%
+  deleted_obs <- new_complete_file %>%
+    select(id_vars) %>%
     anti_join(full_idvars_output, by=id_vars)
   new_complete_file <- new_complete_file %>%
     anti_join(deleted_obs, by=id_vars)

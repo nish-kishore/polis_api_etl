@@ -141,4 +141,9 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                       change_summary = change_summary,
                       change_log_folder = NULL,
                       n_change_log = 30)
+  
+  #Delete query parameters yaml
+  if(file.exists(file.path(folder,'cache_dir','query_parameters.yaml'))){
+    file.remove(file.path(folder,'cache_dir','query_parameters.yaml'))
+  }
 }

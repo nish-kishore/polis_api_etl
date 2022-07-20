@@ -56,16 +56,8 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
       pivot_longer(cols=-id_vars) %>%
       mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
       mutate(name = str_sub(name, 1, -3)) %>%
-    # colnames(in_new_and_old_but_modified)[1] <- "Id"
-    # in_new_and_old_but_modified <- in_new_and_old_but_modified %>%
-    #   group_by(Id, name, source) %>%
-    #   slice(1) %>%
-    #   ungroup() %>%
       #long_to_wide
       pivot_wider(names_from=source, values_from=value) %>%
-      # pivot_wider(names_from=source, values_from=value, values_fn = list) %>%
-      # mutate(new = paste(new, collapse=","),
-             # old = paste(old, collapse=",")) %>%
       filter(new != old)
     
     #summary counts

@@ -129,6 +129,7 @@ get_query_parameters <- function(table_name,
     id_vars <- table_defaults$id_vars
     download_size <- as.numeric(table_defaults$download_size)
   }
+  if(is.null(table_name_descriptive)){table_name_descriptive <- table_name}
   query_parameters <- list(table_name = table_name, 
                            field_name = field_name, 
                            id_vars = id_vars, 

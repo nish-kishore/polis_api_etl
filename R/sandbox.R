@@ -164,3 +164,21 @@ get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
                 id_vars = "Id",
                 download_size = 1000,
                 check_for_deleted_rows = FALSE)
+
+#Mock metadata change (e.g. add a variable in Geography)
+Geography <- readRDS("C:/Users/wxf7/Desktop/POLIS_data/Geography.rds")
+Geography <- Geography %>%
+  select(1:30) %>% 
+  mutate(Name = ifelse(Name == "ETHIOPIA", "MISSPELLED", Name)) %>%
+  filter(Name != "UGANDA")
+
+write_rds(Geography, "C:/Users/wxf7/Desktop/POLIS_data/Geography.rds")
+
+get_polis_table(folder="C:/Users/wxf7/Desktop/POLIS_data",
+                token="BRfIZj%2fI9B3MwdWKtLzG%2bkpEHdJA31u5cB2TjsCFZDdMZqsUPNrgiKBhPv3CeYRg4wrJKTv6MP9UidsGE9iIDmaOs%2bGZU3CP5ZjZnaBNbS0uiHWWhK8Now3%2bAYfjxkuU1fLiC2ypS6m8Jy1vxWZlskiPyk6S9IV2ZFOFYkKXMIw%3d",
+                table_name = "Geography",
+                field_name = "UpdatedDate",
+                id_vars = "Id",
+                download_size = 1000,
+                check_for_deleted_rows = FALSE)
+ 

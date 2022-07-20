@@ -119,6 +119,9 @@ append_and_save <- function(query_output = query_output,
         anti_join(deleted_obs, by=id_vars)
       print(paste0("Check for deleted records found and removed ", nrow(deleted_obs), " records from the previously saved table."))
     }
+    #remove exact duplicate rows
+    new_query_output <- new_query_output %>%
+      unique()
     
     #save to file
     write_rds(new_query_output, file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))

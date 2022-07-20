@@ -118,7 +118,7 @@ save_change_summary <- function(table_name = load_query_parameters()$table_name,
       paste0(., ".rds")
   }
   if(length(change_log_list) >= n_change_log){
-    file.remove(file.path(change_log_subfolder, oldest_file))
+    invisible(file.remove(file.path(change_log_subfolder, oldest_file)))
   }
   #write the current file to the archive subfolder
   write_rds(change_summary, file.path(change_log_subfolder, paste0(table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds")))

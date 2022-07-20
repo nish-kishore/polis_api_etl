@@ -96,7 +96,7 @@ archive_last_data <- function(table_name = load_query_parameters()$table_name,
       paste0(., ".rds")
   }
   if(length(archive_list) >= n_archive){
-    file.remove(file.path(archive_folder, table_name, oldest_file))
+    invisible(file.remove(file.path(archive_folder, table_name, oldest_file)))
   }
   
   #write the current file to the archive subfolder
@@ -256,7 +256,7 @@ polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table
       
       #delete previous rds
       if(file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))){
-        file.remove(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
+        invisible(file.remove(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds"))))
       }
     }
     # updated <- read_table_in_cache_dir(load_query_parameters()$table_name)$updated

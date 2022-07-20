@@ -257,9 +257,11 @@ polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table
         file.remove(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
       }
     }
-    updated <- read_table_in_cache_dir(query_parameters$table_name)$updated
-    latest_date <- read_table_in_cache_dir(query_parameters$table_name)$latest_date
-    if(is.na(latest_date)){latest_date <- "1900-01-01"}
+    # updated <- read_table_in_cache_dir(load_query_parameters()$table_name)$updated
+    # latest_date <- read_table_in_cache_dir(load_query_parameters()$table_name)$latest_date
+    # if(is.na(latest_date)){latest_date <- "1900-01-01"}
+    updated <- Sys.time()
+    latest_date <- "1900-01-01"
     
     #read in yaml
     query_parameters_yaml <- load_query_parameters()

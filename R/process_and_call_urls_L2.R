@@ -163,6 +163,7 @@ append_and_save <- function(query_output = query_output,
 call_urls_combined <- function(urls,
                                type){
   if(type == "full"){print("Pulling all variables:")}
+  if(type == "re-pull"){print("Metadata change detected: Re-pulling all variables:")}
   if(type == "id_filter"){print("Pulling ID variables:")}
   if(type == "id_only"){print("Checking for deleted Ids in the full table:")}
   query_start_time <- Sys.time()

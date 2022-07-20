@@ -82,7 +82,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   
   if(re_pull_polis_indicator == TRUE){
     urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
-                                      min_date = as.Date("1900-01-01"),
+                                      min_date = load_query_parameters()$latest_date,
                                       field_name = load_query_parameters()$field_name,
                                       download_size = load_query_parameters()$download_size,
                                       id_vars = load_query_parameters()$id_vars,

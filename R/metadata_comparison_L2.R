@@ -47,17 +47,18 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
     
     #count obs modified in new file compared to old and get set
     in_new_and_old_but_modified <- new_file %>%
-      inner_join(latest_file, by=as.vector(id_vars)) %>%
-      #restrict to cols in new and old
-      select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
+      select(-c(setdiff(colnames(new_file), colnames(latest_file)))) %>%
+      inner_join(latest_file %>%
+                   select(-c(setdiff(colnames(latest_file), colnames(new_file)))), by=as.vector(id_vars)) %>%
       #wide_to_long
       pivot_longer(cols=-id_vars) %>%
       mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
       mutate(name = str_sub(name, 1, -3)) %>%
       #long_to_wide
-      pivot_wider(names_from=source, values_from=value, values_fn = list) %>%
-      mutate(new = paste(new, collapse=","),
-             old = paste(old, collapse=",")) %>%
+      pivot_wider(names_from=source, values_from=value) %>%
+      # pivot_wider(names_from=source, values_from=value, values_fn = list) %>%
+      # mutate(new = paste(new, collapse=","),
+      #        old = paste(old, collapse=",")) %>%
       filter(new != old)
     
     #summary counts
@@ -261,7 +262,7 @@ get_polis_metadata <- function(query_output,
 #Compare metadata of newly pulled dataset to cached metadata
 metadata_comparison <- function(new_table_metadata,
                                 old_table_metadata,
-                                verbose=FALSE){
+                                verbose=TRUE){
   #if new or old metadata are null, go to end
   if(!is.null(new_table_metadata) & !is.null(old_table_metadata)){
     if(nrow(new_table_metadata) != 0 & nrow(old_table_metadata) != 0){
@@ -276,7 +277,7 @@ metadata_comparison <- function(new_table_metadata,
       if(length(new_vars) != 0){
         new_vars <- new_vars
         if(verbose == TRUE){
-          warning(print("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'"))
+          warning("There are new variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'new_vars'")
         }
       }
       
@@ -287,7 +288,7 @@ metadata_comparison <- function(new_table_metadata,
       if(length(lost_vars) != 0){
         lost_vars <- lost_vars
         if(verbose == TRUE){
-          warning(print("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'"))
+          warning("There are missing variables in the POLIS table\ncompared to when it was last retrieved\nReview in 'lost_vars'")
         }
       }
       
@@ -304,7 +305,7 @@ metadata_comparison <- function(new_table_metadata,
       if(nrow(class_changed_vars) != 0){
         class_changed_vars <- class_changed_vars
         if(verbose == TRUE){
-          warning(print("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'"))
+          warning("There are variables in the POLIS table with different classes\ncompared to when it was last retrieved\nReview in 'class_changed_vars'")
         }
       }
       
@@ -328,7 +329,7 @@ metadata_comparison <- function(new_table_metadata,
         new_response <- new_response
         
         if(verbose == TRUE){
-          warning(print("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'"))
+          warning("There are categorical responses in the new table\nthat were not seen when it was last retrieved\nReview in 'new_response'")
         }
       }
       

@@ -177,24 +177,26 @@ revert_from_archive <- function(last_good_date = Sys.Date()-1){
   #for each item in subfolder_list, get all file names then subset to most recent
   for(i in subfolder_list){
     subfolder_files <- list.files(file.path(archive_folder, i))
-    file_dates <- c()
-    for(j in subfolder_files){
-      file_date <- attr(readRDS(file.path(archive_folder, i, j)),which="updated")
-      file_dates <- c(file_dates, file_date)
-    }
-    file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
-                       mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
-                       filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
-                       arrange(desc(create_date)) %>%
-                       slice(1))$name
-    #load file to keep
-    if(length(file_to_keep) > 0){
-      file_to_keep <- readRDS(file.path(archive_folder, i, file_to_keep))
-      #write file to keep to data folder
-      write_rds(file_to_keep, file.path(folder, paste0(i,".rds")))
-    }
-    if(length(file_to_keep) == 0){
-      warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
+    if(length(subfolder_files) > 0){
+      file_dates <- c()
+      for(j in subfolder_files){
+        file_date <- attr(readRDS(file.path(archive_folder, i, j)),which="updated")
+        file_dates <- c(file_dates, file_date)
+      }
+      file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
+                         mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
+                         filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
+                         arrange(desc(create_date)) %>%
+                         slice(1))$name
+      #load file to keep
+      if(length(file_to_keep) > 0){
+        file_to_keep <- readRDS(file.path(archive_folder, i, file_to_keep))
+        #write file to keep to data folder
+        write_rds(file_to_keep, file.path(folder, paste0(i,".rds")))
+      }
+      if(length(file_to_keep) == 0){
+        warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
+      }
     }
   }
   #Update the cache to reflect the reverted files

@@ -1,3 +1,5 @@
+#' Initiate POLIS Folder Structure
+#' 
 #' Check to see if cache exists, if not create it
 #' @param folder A string, the location of the polis data folder
 #' @return A string describing the creation process or errors
@@ -39,7 +41,12 @@ init_polis_data_struc <- function(folder, token){
   }
 }
 
-#Check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
+#' Add Table to Cache
+#' 
+#' Check to see if table exists in cache_dir. If not, last-updated and last-item-date are default min and entry is created; if table exists no fx necessary
+#' @param table_name Name of a POLIS table
+#' @param field_name Name of the date field to be used to detect new entries in the POLIS table for update queries
+
 init_polis_data_table <- function(table_name = table_name,
                                   field_name = field_name){
   folder <- load_specs()$polis_data_folder
@@ -61,7 +68,11 @@ init_polis_data_table <- function(table_name = table_name,
   }
 }
 
-#Read cache_dir and return table-name, last-update, and latest-date to the working environment
+#' Read Table in Cache
+#' 
+#' Read the row of the cache table corresponding to a selected table
+#' @param table_name Name of a POLIS table
+#' @return A list containing the updated date, latest date, and field_name stored in the cache for the selected table
 read_table_in_cache_dir <- function(table_name){
   folder <- load_specs()$polis_data_folder
   cache_dir <- file.path(folder, "cache_dir")
@@ -82,8 +93,11 @@ read_table_in_cache_dir <- function(table_name){
   return(list = list("updated" = updated, "latest_date" = latest_date, "field_name" = field_name))
 }
 
+#' Read Cache
+#' 
 #' Read cache and return information
 #' @param .file_name A string describing the file name for which you want information
+#' @param cache_file The file pathway of the cache.rds
 #' @return tibble row which can be atomically accessed
 read_cache <- function(.file_name = table_name,
                        cache_file = file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')){
@@ -91,7 +105,16 @@ read_cache <- function(.file_name = table_name,
     filter(file_name == .file_name)
 }
 
-#Get user input for which table to pull, if not specified:
+#' Get Query Parameters
+#' 
+#' Get user input for which table to pull, if not specified, and save in query_parameters yaml
+#' @param table_name Name of POLIS table
+#' @param field_name Name of date field in POLIS table to be used to identify updates and new entries for updating
+#' @param id_vars Vector of fields in POLIS table that create a unique row ID
+#' @param download_size Number of rows to request per API call
+#' @param table_name_descriptive Descriptive name of the POLIS table
+#' @param check_for_deleted_rows Indicator for whether or not to check POLIS for any row previously downloaded that is now deleted in POLIS
+#' @return Query parameters saved in a yaml in the 'cache_dir' folder
 get_query_parameters <- function(table_name, 
                               field_name, 
                               id_vars, 
@@ -166,7 +189,12 @@ get_query_parameters <- function(table_name,
 
 
 
-#Run a simple API call to check if the user-provided token is valid
+#' Validate Token
+#' 
+#' Run a simple API call to check if the user-provided token is valid
+#' 
+#' @param token POLIS API token provided by user
+#' @return An indicator of whether or not the token provided was valid. True if valid. False if invalid.
 validate_token <- function(token = token){
   my_url_test <-  paste0('https:/extranet.who.int/polis/api/v2/',
                          'Case?',

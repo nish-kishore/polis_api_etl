@@ -1,3 +1,11 @@
+#' Compare Final to Archive
+#' 
+#' Compare the final updated dataset to the last archived version of the table
+#' 
+#' @param table_name Name of the POLIS table being updated
+#' @param id_vars Vector of field names from the POLIS table that combine to create a unique row ID
+#' @param categorical_max Maximum number of unique values in a string in order for it to be compared as a categorical
+#' @return A list of differences between the new table and the last archived version of the table, including metadata differences (e.g. differences in field names) and routine additions/edits/deletions
 compare_final_to_archive <- function(table_name = load_query_parameters()$table_name,
                                      id_vars = load_query_parameters()$id_vars,
                                      categorical_max = 30){
@@ -82,7 +90,14 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
 }
 
 
-
+#' Save Change Summary
+#' 
+#' Saves the change summary created in compare_final_to_archive() to a change log folder
+#' 
+#' @param table_name Name of the POLIS table the change_summary corresponds to
+#' @param change_summary The change summary object returned by compare_final_to_archive()
+#' @param change_log_folder Folder pathway where the change logs will be saved
+#' @param n_change_log Number of change logs to save per POLIS table (i.e. save the most recent X change logs)
 save_change_summary <- function(table_name = load_query_parameters()$table_name, 
                                 change_summary,
                                 change_log_folder = NULL,
@@ -124,7 +139,9 @@ save_change_summary <- function(table_name = load_query_parameters()$table_name,
   write_rds(change_summary, file.path(change_log_subfolder, paste0(table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds")))
 }
 
-#function which prints the latest change log into console
+#' Print Latest Change Log Summary
+#' 
+#' Function which prints the latest change log into console
 print_latest_change_log_summary <- function(){
   #load and combine latest change_log for all tables
   #Check if change_log folder exists. If not, go to end.
@@ -228,7 +245,15 @@ print_latest_change_log_summary <- function(){
     } else {print("No observation additions/edits/deletions were found in any table since last download.")}
   }
 }
-#Summarise POLIS metadata and store in cache
+
+#' Summarise Metadata for a Table
+#' 
+#' Summarise POLIS metadata, including variable names, variable classes, and categorical response sets
+#' 
+#' @param query_output A dataframe
+#' @param table_name POLIS table name that corresponds to the dataframe
+#' @param categorical_max Maximum number of unique values in a string in order for it to be compared as a categorical
+#' @return A list of objects that summarise the metadata of query_output
 get_polis_metadata <- function(query_output,
                                table_name = load_query_parameters()$table_name,
                                categorical_max = 30){
@@ -258,7 +283,14 @@ get_polis_metadata <- function(query_output,
   return(table_metadata)
 }
 
-#Compare metadata of newly pulled dataset to cached metadata
+#' Metadata Comparison
+#' 
+#' Compare metadata of newly pulled dataset to cached metadata
+#' 
+#' @param new_table_metadata Metadata summary output from get_polis_metadata() from the new table
+#' @param old_table_metadata Metadata summary output from get_polis_metadata() from the old table
+#' @param verbose Indicator for whether or not to print the results of the comparison to the console
+#' @return A list of objects that summarise differences in metadata between new and old table
 metadata_comparison <- function(new_table_metadata,
                                 old_table_metadata,
                                 verbose=TRUE){

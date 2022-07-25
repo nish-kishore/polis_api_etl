@@ -1,19 +1,21 @@
-#' Load authorizations and local config
-#' @param file A string
+#' Load Authorizations and Local Config
+#' @param folder Folder pathway where POLIS data will be saved
 #' @return auth/config object
 load_specs <- function(folder = Sys.getenv("polis_data_folder")){
   specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
   return(specs)
 }
 
-#' Load query parameters
-#' @param file A string
-#' @return auth/config object
+#' Load Query Parameters
+#' @param folder Folder pathway where POLIS data are saved
+#' @return Parameters for an individual POLIS table query
 load_query_parameters <- function(folder = Sys.getenv("polis_data_folder")){
   query_parameters <- read_yaml(file.path(folder,'cache_dir','query_parameters.yaml'))
   return(query_parameters)
 }
 
+#' Load a dataframe of query parameters corresponding to each API-accessible POLIS table
+#' @return Dataframe of default parameters, where each row can be used as query parameters for a POLIS table
 load_defaults <- function(){
   defaults <- as.data.frame(bind_rows(
     c(table_name_descriptive = "Activity", table_name = "Activity", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
@@ -148,21 +150,28 @@ load_defaults <- function(){
   return(defaults)
 }
 
-#Call an individual URL until it succeeds or reaches a call limit
-#input: URL
-#output: API response
+#' Call URL
+#' 
+#' Call an individual URL until it succeeds or reaches a call limit
+#' 
+#' @param url A single URL to be called
+#' @param call_limit Number of times to re-try URL if call fails
+#' @param timeout_secs Time to wait from call to response before determining that call has failed
+#' @return The response from the URL
 call_url <- function(url,
+                     call_limit = 10,
+                     timeout_secs = 150,
                      error_action = "STOP"){
   status_code <- "x"
   i <- 1
-  while(status_code != "200" & i < 10){
+  while(status_code != "200" & i < call_limit){
     response <- NULL
-    response <- httr::GET(url, timeout(150))
+    response <- httr::GET(url, timeout(timeout_secs))
     if(is.null(response) == FALSE){
       status_code <- as.character(response$status_code)
     }
     i <- i+1
-    if(i == 10){
+    if(i == call_limit){
       if(error_action == "STOP"){
         stop("Query halted. Repeated API call failure.")
       }

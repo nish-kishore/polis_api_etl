@@ -2,6 +2,7 @@
 #' @param .file_name A string describing the file name for which you want to update information
 #' @param .val_to_update A string describing the value to be updated
 #' @param .val A value of the same type as the value you're replacing
+#' @param cahce_file File pathway of the cache.rds file
 #' @return row of a tibble
 update_cache <- function(.file_name,
                          .val_to_update,
@@ -13,7 +14,14 @@ update_cache <- function(.file_name,
   write_rds(tmp, cache_file)
 }
 
-# Calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
+#' Get Update Cache Dates
+#' 
+#' Calculates new last-update and latest-date and enters it into the cache, saves the dataset as rds
+#' 
+#' @param query_output Dataframe pulled from POLIS
+#' @param field_name Date field used to pull dataframe from POLIS
+#' @param table_name Name of table pulled from POLIS
+#' @return A dataframe containing the latest_date and update_date for the specified table
 get_update_cache_dates <- function(query_output,
                                    field_name = load_query_parameters()$field_name,
                                    table_name = load_query_parameters()$table_name){
@@ -50,7 +58,14 @@ get_update_cache_dates <- function(query_output,
   return(update_cache_dates)
 }
 
-#Function that moves the rds files in the polis_data folder to an archive folder
+#' Archive Last Data
+#' 
+#' Moves the rds files in the polis_data folder to an archive folder
+#' 
+#' @param table_name Name of POLIS table to be archived
+#' @param archive_folder Folder pathway of archive
+#' @param n_archive Number of archive versions of each table to retain (e.g. n_archive = 3 retains last three versions)
+
 archive_last_data <- function(table_name = load_query_parameters()$table_name,
                               archive_folder = NULL, #folder pathway where the datasets will be archived
                               n_archive = 3 #Number of most-recent datasets to save in archive, per table
@@ -111,7 +126,12 @@ archive_last_data <- function(table_name = load_query_parameters()$table_name,
   
 }
 
-#Add the metadata stored in cache to a table as an attribute, so that table-specific metadata can be retained through archiving / retrieval from archive
+#' Add Cache Attributes
+#' 
+#' Add the metadata stored in cache to a table as an attribute, so that table-specific metadata can be retained through archiving / retrieval from archive
+#'
+#' @param table_name Name of POLIS table  
+
 add_cache_attributes <- function(table_name = load_query_parameters()$table_name){
   #Get list of rds 
   # current_files <- list.files(load_specs()$polis_data_folder) %>%
@@ -134,7 +154,14 @@ add_cache_attributes <- function(table_name = load_query_parameters()$table_name
   write_rds(file, file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
 }
 
-#Function that moves the rds files in the polis_data folder to an snapshot folder
+#' Save snapshot
+#' 
+#' Moves the rds files in the POLIS data folder to a snapshot folder
+#' 
+#' @param snapshot_folder Folder pathway where the snapshot will be saved
+#' @param snapshot_date Timestamp or date to be associated with the snapshot
+#' @export
+
 save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the datasets will be saved
                           snapshot_date = Sys.time()
 ){
@@ -166,7 +193,12 @@ save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the data
   }
 }
 
-#Restore all datasets from the latest archived datasets with date at or prior to last_good_date
+#' Revert From Archive
+#' 
+#' Restore all datasets from the latest archived datasets with date at or prior to last_good_date
+#'
+#' @param last_good_date Last known 'good' date, where the latest archived version of each table created at or before this date will be restored
+
 revert_from_archive <- function(last_good_date = Sys.Date()-1){
   folder <- load_specs()$polis_data_folder
   archive_folder <- file.path(load_specs()$polis_data_folder,"archive")
@@ -203,6 +235,10 @@ revert_from_archive <- function(last_good_date = Sys.Date()-1){
   update_cache_from_files()
 }
 
+#' Update Cache From Files
+#' 
+#' Update the cache with the created, updated, and latest dates stored as attributes of individual rds files
+
 update_cache_from_files <- function(){
   #read in cache
   cache <- readRDS(file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')) 
@@ -231,7 +267,13 @@ update_cache_from_files <- function(){
   write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
 }
 
-#If re_pull_polis_indicator is TRUE, then re-pull the complete table and update the cache
+#' POLIS Re-Pull Cache Reset
+#' 
+#' If re_pull_polis_indicator is TRUE, then re-set the the cache to default values to trigger a re-pull of the full table
+#'
+#' @param table_name Name of POLIS table being updated
+#' @param field_name Date field used to update the POLIS table
+#' @param re_pull_polis_indicator Indicator of whether or not a full re-pull of the POLIS table is needed (i.e. if there has been a metadata change such as a new variable added or class change of a variable)
 
 polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table_name,
                           field_name = load_query_parameters()$field_name,

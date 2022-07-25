@@ -1,4 +1,21 @@
-#Pull all tables through running get_polis_table across all tables:
+#' Get POLIS Data
+#'
+#' Extract and save all POLIS tables. For each table:
+#' 1. If table was previously pulled, move previous version to archive folder
+#' 2. Use cache entry to determine range of data pull
+#' 3. Pull data from POLIS
+#' 4. Compare pulled data metadata to previous pulled data metadata to determine if a full re-pull of the table is needed
+#' 5. If re-pull is indicated, then re-pull the full table
+#' 6. Update cache entry
+#' 7. Save a summary of changes between new data pull and previous data pull
+#' 
+#' @param folder Folder pathway where POLIS data will be or are saved
+#' @param token POLIS API token
+#' @param verbose Indicator for whether or not to print progress messages to console while running
+#' @param dev Indicator for whether or not to pull the limited set of tables used for testing / package development
+#' @param check_for_deleted_rows Indicator for whether or not to check the full POLIS table for any deleted rows, and remove any of these from the locally saved version of the table
+#' @export
+
 get_polis_data <- function(folder = NULL,
                            token = "",
                            verbose=TRUE,

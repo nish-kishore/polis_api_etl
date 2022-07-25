@@ -1,18 +1,20 @@
-#Extract and save a single POLIS table:
-#If table was previously pulled, move previous version to archive folder
-#Use cache entry to determine range of data pull
-#Pull data from POLIS
-#Compare pulled data metadata to previous pulled data metadata to determine if a full re-pull of the table is needed
-#If re-pull is indicated, then re-pull the full table
-#Update cache entry
-#Save a summary of changes between new data pull and previous data pull
+#' Get POLIS Table
+#'
+#' Extract and save a single POLIS table:
+#' 1. If table was previously pulled, move previous version to archive folder
+#' 2. Use cache entry to determine range of data pull
+#' 3. Pull data from POLIS
+#' 4. Compare pulled data metadata to previous pulled data metadata to determine if a full re-pull of the table is needed
+#' 5. If re-pull is indicated, then re-pull the full table
+#' 6. Update cache entry
+#' 7. Save a summary of changes between new data pull and previous data pull
 
 #' @param folder      A string, the location of the polis data folder
 #' @param token       A string, the token for the API
 #' @param table_name  A string, matching the POLIS name of the requested data table
 #' @param field_name  A string, the name of the variable in the requested data table used to filter API query
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
-#'
+#' @export
 get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             token = load_specs()$polis$token,
                             table_name = NULL,

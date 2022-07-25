@@ -1,6 +1,9 @@
-#' get table data for a single url request
+#' Get Table Data
+#' 
+#' Get table data for a single url request
 #' @param url string of a single url
 #' @param p used as iterator in multicore processing
+#' @return A list containing two elements: the URL and the response data (or NULL if no response data is received)
 get_table_data <- function(url, p){tryCatch({
   
   p()
@@ -26,7 +29,9 @@ get_table_data <- function(url, p){tryCatch({
 })
 }
 
-#' multicore pull from API
+#' Multicore Pull from API
+#' 
+#' Call a set of urls using multicore processing
 #' @param urls array of URL strings
 mc_api_pull <- function(urls){
   p <- progressor(steps = length(urls))
@@ -34,8 +39,9 @@ mc_api_pull <- function(urls){
     rbind()
 }
 
-#' wrapper around multicore pull to produce progress bars
+#' wrapper around multicore pull to produce progress bars and combine URL responses
 #' @param urls array of URL strings
+#' @return a list of two objects: the combined data received from the set of urls and a vector of failed urls
 pb_mc_api_pull <- function(urls){
   n_cores <- availableCores() - 1
   plan(multicore, workers = n_cores, gc = T)
@@ -67,7 +73,17 @@ pb_mc_api_pull <- function(urls){
   stopCluster(n_cores)
 }
 
-#retry all urls that failed when calling a url array
+
+#' Retry Failed URLs
+#' 
+#' Retry all URLs that failed when calling a URL array
+#' 
+#' @param failed_urls A vector of URLs previously called and failed
+#' @param failed_url_filename File pathway where failed urls will be saved
+#' @param query_output Data output of previous set of URLs, to be combined with response from any of the failed URLs that succeed upon retry
+#' @param retry An indicator for whether or not the failed URLs should be retried before exporting list of failed URLs
+#' @param save An indicator for whether or not the list of failed urls should be saved 
+#' @return Data output of previous set of URLs, combined with data output from any of the failed URLs that succeeded upon retry
 handle_failed_urls <- function(failed_urls,
                                failed_url_filename,
                                query_output, 
@@ -91,7 +107,15 @@ handle_failed_urls <- function(failed_urls,
   return(query_output)
 }
 
-#Join the previously cached dataset for a table to the newly pulled dataset
+#' Append and Save
+#' 
+#' Join the previously cached dataset for a table to the newly pulled dataset
+#' 
+#' @param query_output
+#' @param id_vars
+#' @param table_name
+#' @param full_idvars_output
+#' @return A dataframe that combines the previous version of the POLIS table with the newly downloaded update
 append_and_save <- function(query_output = query_output,
                             id_vars = load_query_parameters()$id_vars, #id_vars is a vector of data element names that, combined, uniquely identifies a row in the table
                             table_name = load_query_parameters()$table_name,
@@ -162,7 +186,13 @@ append_and_save <- function(query_output = query_output,
   }
 }
 
-#combine calling urls and processing output into a single function
+#' Call URLs Combined
+#' 
+#' Combines calling urls and processing output into a single function
+#' 
+#' @param urls A vector of API URLs to be called
+#' @param type The type of URLs in the vector: "full", "re-pull", "id_filter", or "id_only"
+#' @return A dataframe combining responses to calling all the URLs requested
 call_urls_combined <- function(urls,
                                type){
   if(type == "full"){print("Pulling all variables:")}

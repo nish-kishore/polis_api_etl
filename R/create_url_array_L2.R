@@ -1,5 +1,7 @@
-#date_min_conv (Note: this is copied from idm_polis_api)
-
+#' date_min_conv
+#' 
+#' Creates the date filter snippet of a POLIS API URL call
+#' 
 #' @param field_name The name of the field used for date filtering.
 #' @param date_min The 10 digit string for the min date.
 #' @return String compatible with API v2 syntax.
@@ -14,9 +16,12 @@ date_min_conv <- function(field_name = load_query_parameters()$field_name,
          ")")
 }
 
-#convert field_name to the format needed for API query for null query
-
+#' date_null_conv
+#' 
+#' Creates the date filter snippet of a POLIS API URL call corresponding to selecting rows where the date field is null
+#' 
 #' @param field_name The name of the field used for date filtering.
+#' @param date_min The 10 digit string for the min date.
 #' @return String compatible with API v2 syntax.
 date_null_conv <- function(field_name = load_query_parameters()$field_name){
   if(is.null(field_name)) return(NULL)
@@ -25,11 +30,13 @@ date_null_conv <- function(field_name = load_query_parameters()$field_name){
                 ")"))
 }
 
-#make_url_general (Note: this is copied from idm_polis_api, with null added)
-
+#' make_url_general
+#' 
+#' Combines the URL snippets from date_min_conv and date_null_conv into the full date filter portion of a POLIS API URL call
+#'
 #' @param field_name The date field to which to apply the date criteria, unique to each data type.
 #' @param min_date Ten digit date string YYYY-MM-DD indicating the minimum date, default 2010-01-01
-#' @param ... other arguments to be passed to the api
+#' 
 make_url_general <- function(field_name = load_query_parameters()$field_name,
                              min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin)){
   
@@ -37,10 +44,19 @@ make_url_general <- function(field_name = load_query_parameters()$field_name,
          date_min_conv(field_name, min_date),
          ") or (",
          date_null_conv(field_name), ")") 
-  # %>%
-  #   paste0("&$inlinecount=allpages")
 }
-#Single function to create a url array by any method, avoiding repetition of some steps
+
+#' Create URL Array
+#' 
+#' Create an array of URLs that combine to cover an entire POLIS table
+#' 
+#' @param table_name Name of POLIS table that the URLs will cover
+#' @param min_date Date to start query from
+#' @param field_name Name of date field in POLIS table to use to structure query
+#' @param download_size Number of rows to pull in each URL call
+#' @param id_vars A vector of variable names from the POLIS table that combine to create a unique ID
+#' @param method API query method. Options: "skip_top", "id_filter", and "id_only".
+#' @return A vector of URLs
 
 create_url_array_combined <- function(table_name = load_query_parameters()$table_name,
                                       min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),

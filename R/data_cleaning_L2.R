@@ -1,12 +1,18 @@
-#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https:/r4ds.had.co.nz/data-import.html]
-# 1. logical: contains only "F", "T", "FALSE", or "TRUE"
-# 2. integer: contains only numeric characters (and -).
-# 3. double: contains only valid doubles (including numbers like 4.5e-5)
-# 4. number: contains valid doubles with the grouping mark inside.
-# 5. time: matches the default time_format
-# 6. date: matches the default date_format
-# 7. date-time: any ISO8601 date
-# 8. If none of the above apply, then keep col as character.
+#' Cleaning: Guess and Assign Var Classes
+#'
+#' data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https:/r4ds.had.co.nz/data-import.html]
+#' 1. logical: contains only "F", "T", "FALSE", or "TRUE"
+#' 2. integer: contains only numeric characters (and -).
+#' 3. double: contains only valid doubles (including numbers like 4.5e-5)
+#' 4. number: contains valid doubles with the grouping mark inside.
+#' 5. time: matches the default time_format
+#' 6. date: matches the default date_format
+#' 7. date-time: any ISO8601 date
+#' 8. If none of the above apply, then keep col as character.
+#' 
+#' @param input_dataframe Dataframe to be cleaned, with all variables in character class
+#' @return Dataframe with each variable converted into appropriate class when class could be guessed
+
 cleaning_var_class_initial <- function(input_dataframe = NULL){
   if(!is.null(input_dataframe)){
     #Get 3 sets of 1000 rows to use to guess classes and compare
@@ -82,7 +88,14 @@ cleaning_var_class_initial <- function(input_dataframe = NULL){
   return(input_dataframe)
 }
 
-#data cleaning: remove duplicates either across all vars, or a set of vars if specified by the user
+#' Cleaning: Deduplicate
+#'
+#' data cleaning: remove duplicates either across all vars, or a set of vars if specified by the user
+#' 
+#' @param input_dataframe Dataframe to be cleaned
+#' @param dedup_vars A vector of variable names to be used as a unique ID. If repeats of this set are found, only the first row is retained.
+#' @return Dataframe with exact duplicates removed
+
 cleaning_dedup <- function(input_dataframe = NULL,
                            dedup_vars = NULL #a vector of var names to deduplicate on
 ){
@@ -99,7 +112,12 @@ cleaning_dedup <- function(input_dataframe = NULL,
   return(input_dataframe)
 }
 
-#data cleaning: remove empty rows and columns
+#' Cleaning: Remove Blank Rows
+#'
+#' data cleaning: remove blank rows, or remove all rows where all variables are "NA"
+#' @param input_dataframe Dataframe to be cleaned
+#' @return Dataframe with blank rows removed
+
 cleaning_remove_empty_rows <- function(input_dataframe = NULL){
   if(!is.null(input_dataframe)){
     input_dataframe <- input_dataframe %>%
@@ -151,7 +169,10 @@ cleaning_remove_empty_rows <- function(input_dataframe = NULL){
 #   return(input_dataframe)
 # }
 
-#get variable class from metadata page (needs some correction still to match metadata to API table names/var names)
+#' Cleaning: Get Classes From Metadata
+#'
+#' Get variable class from metadata page (needs some correction still to match metadata to API table names/var names)
+#' @return Dataframe containing variable class data scraped from POLIS metadata page
 cleaning_var_class_from_metadata <- function(){
   url <- 'https:/extranet.who.int/polis/api/v2/$metadata'
   
@@ -184,14 +205,23 @@ cleaning_var_class_from_metadata <- function(){
   return(metadata)
 }
 
-#data cleaning: convert all empty strings to NA
+#' Cleaning: Convert Blank to NA
+#' data cleaning: convert all empty or blank-space strings to NA
+#' @param input_dataframe Dataframe to be cleaned
+#' @return Dataframe with all empty or blank-space values converted to NA
 cleaning_blank_to_na <- function(input_dataframe){
   input_dataframe <- input_dataframe %>%
     mutate_all(list(~str_trim(.))) %>% #remove all leading/trailing whitespaces as well as replace all " " with ""
     mutate_all(list(~na_if(.,""))) #replace "" with NA
 }
 
-#data cleaning: replace all special characters with alphanumeric
+#' Cleaning: Replace Special Characters
+#'
+#' data cleaning: replace all special or non-ASCII characters with alphanumeric
+#' 
+#' @param input_dataframe Dataframe to be cleaned
+#' @return A dataframe with all non-ASCII characters in all fields replaced with ASCII approximation
+
 cleaning_replace_special <- function(input_dataframe){
   #for each character variable, replace special characters
   input_dataframe <- input_dataframe %>%
@@ -200,13 +230,19 @@ cleaning_replace_special <- function(input_dataframe){
               id = "Latin-ASCII") 
   return(input_dataframe)
 }
-#data cleaning: standardize variable names by the following rules: [From: https:/cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
-# Parse letter cases and separators to a consistent format (e.g. snake_case)
-# Remove leading/trailing/repeating spaces
-# Replace special characters with alphanumeric (e.g. o to oe)
-# Append numbers to duplicated names
-# Convert '%' to 'percent' and '#' to number
 
+#' Cleaning: Var Names
+#'
+#' data cleaning: standardize variable names by the following rules: [From: https:/cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
+#' Parse letter cases and separators to a consistent format (e.g. snake_case)
+#' Remove leading/trailing/repeating spaces
+#' Replace special characters with alphanumeric (e.g. o to oe)
+#' Append numbers to duplicated names
+#' Convert '%' to 'percent' and '#' to number
+#' 
+#' @param input_dataframe Dataframe to have variable names cleaned
+#' @param case Which case type to use in the standardized names (common options include "snake", "lower_camel", "upper_camel". Full set of options are further described in janitor package documentation here: https://www.rdocumentation.org/packages/janitor/versions/1.2.0/topics/clean_names
+#' @return A dataframe with standardized variable names
 cleaning_var_names_initial <- function(input_dataframe = NULL,
                                        case="snake"){
   if(!is.null(input_dataframe)){

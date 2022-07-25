@@ -1,5 +1,17 @@
-#Function to move the full folder to a new location
-  #from is old folder pathway, to is new folder pathway, retain_old is an indicator for whether or not the old folder should be retained or deleted
+#' Move Folder
+#' 
+#' Moves the full contents of a folder from one location to another, including subfolder content
+#' 
+#' @param from Pathway of source folder to be copied (including folder name)
+#' @param to Pathway of new folder location (including folder name)
+#' @param retain_old An indicator for whether or not the source folder should retained (TRUE) or deleted (FALSE)
+#' @export
+#' @examples 
+#' \dontrun{
+#' \donttest{
+#' move_folder(from = "old_folder_pathway", to = "new_folder_pathway", retain_old = TRUE) ## moves folder at old_folder_pathway to new_folder_pathway
+#' }
+#' }
 move_folder <- function(from, to, retain_old = TRUE) {
   #change yaml polis_data_folder
   specs_yaml <- file.path(to,'cache_dir','specs.yaml')

@@ -51,18 +51,29 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
       slice(1) %>%
       ungroup() %>%
       select(-c(setdiff(colnames(new_file), colnames(latest_file)))) %>%
-      inner_join(latest_file %>%
-                   group_by(all_of(id_vars)) %>%
-                   slice(1) %>%
-                   ungroup() %>%
-                   select(-c(setdiff(colnames(latest_file), colnames(new_file)))), by=as.vector(id_vars)) %>%
-      #wide_to_long
-      pivot_longer(cols=-id_vars) %>%
-      mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
-      mutate(name = str_sub(name, 1, -3)) %>%
-      #long_to_wide
-      pivot_wider(names_from=source, values_from=value) %>%
-      filter(new != old)
+      setdiff(., latest_file %>%
+                group_by(all_of(id_vars)) %>%
+                slice(1) %>%
+                ungroup() %>%
+                select(-c(setdiff(colnames(latest_file), colnames(new_file)))))
+    if(nrow(in_new_and_old_but_modified) > 0){
+      in_new_and_old_but_modified <- in_new_and_old_but_modified %>%
+        inner_join(latest_file %>%
+                     select(-c(setdiff(colnames(latest_file), colnames(new_file)))) %>%
+                     setdiff(., new_file %>%
+                               select(-c(setdiff(colnames(new_file), colnames(latest_file))))), by=as.vector(id_vars)) %>%
+        #wide_to_long
+        pivot_longer(cols=-id_vars) %>%
+        mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
+        mutate(name = str_sub(name, 1, -3)) %>%
+        #long_to_wide
+        pivot_wider(names_from=source, values_from=value) %>%
+        filter(new != old)
+    }
+    if(nrow(in_new_and_old_but_modified) == 0){
+      in_new_and_old_but_modified <- data.frame(matrix(ncol=4, nrow=0))
+      colnames(in_new_and_old_but_modified) <- c("Id", "name", "new", "old")
+    }
 
     #summary counts
     n_added <- nrow(in_new_not_old)

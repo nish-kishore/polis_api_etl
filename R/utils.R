@@ -1,46 +1,3 @@
-#Utility functions for the POLIS API ETL
-
-#' Check to see if cache exists, if not create it
-#' @param folder A string, the location of the polis data folder
-#' @return A string describing the creation process or errors
-init_polis_data_struc <- function(folder, token){
-  #check to see if folder exists, if not create it
-  if(!dir.exists(folder)){
-    dir.create(folder)
-  }
-  #check to see if cache directory exists, if not create it
-  cache_dir <- file.path(folder, "cache_dir")
-  if(!dir.exists(cache_dir)){
-    dir.create(cache_dir)
-  }
-  #check to see if cache admin rds exists, if not create it
-  cache_file <- file.path(cache_dir, "cache.rds")
-  if(!file.exists(cache_file)){
-    tibble(
-      "created"=Sys.time(),
-      "updated"=Sys.time(),
-      "file_type"="INIT",
-      "file_name"="INIT",
-      "latest_date"=as_date("1900-01-01"),
-      "date_field" = "N/A"
-    ) %>%
-      write_rds(cache_file)
-  }
-  #create specs yaml
-  specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
-  if(!file.exists(specs_yaml)){
-    if(is.null(token)){token <- ''}
-    yaml_out <- list()
-    yaml_out$polis$token <- token
-    yaml_out$polis_data_folder <- folder
-    write_yaml(yaml_out, specs_yaml)
-  }
-  Sys.setenv("polis_data_folder" = folder)
-  if(token != "" & !is.null(token)){
-  Sys.setenv("token" = token)
-  }
-}
-
 #' Load authorizations and local config
 #' @param file A string
 #' @return auth/config object
@@ -48,6 +5,14 @@ load_specs <- function(folder = Sys.getenv("polis_data_folder")){
   specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
   return(specs)
 }
+
+
+#' Load query parameters
+#' @param file A string
+#' @return auth/config object
+load_query_parameters <- function(folder = Sys.getenv("polis_data_folder")){
+  query_parameters <- read_yaml(file.path(folder,'cache_dir','query_parameters.yaml'))
+  return(query_parameters)
 
 #' Read cache and return information
 #' @param .file_name A string describing the file name for which you want information
@@ -885,6 +850,7 @@ pb_mc_api_pull <- function(urls){
   result <- list(result_df, failed_urls)
   return(result)
   stopCluster(n_cores)
+
 }
 
 load_defaults <- function(){
@@ -893,116 +859,116 @@ load_defaults <- function(){
     c(table_name_descriptive = "Case", table_name = "Case", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Environmental Sample", table_name = "EnvSample", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Geography", table_name = "Geography", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: AFP cases", table_name = "IndicatorValue('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "IndicatorValue('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "IndicatorValue('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "IndicatorValue('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "IndicatorValue('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "IndicatorValue('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "IndicatorValue('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "IndicatorValue('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "IndicatorValue('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "IndicatorValue('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "IndicatorValue('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "IndicatorValue('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "IndicatorValue('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "IndicatorValue('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "IndicatorValue('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "IndicatorValue('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "IndicatorValue('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "IndicatorValue('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "IndicatorValue('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "IndicatorValue('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "IndicatorValue('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "IndicatorValue('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
-    c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "IndicatorValue('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: AFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: AFP 1 to 2 dose percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_1_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: AFP 3+ doses percentage for 6M-59M", table_name = "IndicatorValue('AFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: AFP cases", table_name = "IndicatorValue('AFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Circulating VDPV case count (all Serotypes)", table_name = "IndicatorValue('cVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Circulating VDPV cace count (all serotypes) - Reporting", table_name = "IndicatorValue('cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Combined Surveillance Indicators category", table_name = "IndicatorValue('SURVINDCAT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Environmental sample circulating VDPV", table_name = "IndicatorValue('ENV_CVDPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Environmental samples count", table_name = "IndicatorValue('ENV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Environmental Wild samples", table_name = "IndicatorValue('ENV_WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Non polio AFP cases (under 15Y)", table_name = "IndicatorValue('NPAFP_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending excluded)", table_name = "IndicatorValue('NPAFP_RATE_NOPENDING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Non polio AFP rate (Pending included)", table_name = "IndicatorValue('NPAFP_RATE')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: NPAFP 0-2 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0_to_2')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: NPAFP 0 dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_0')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: NPAFP 3+ dose percentage for 6M-59M", table_name = "IndicatorValue('NPAFP_DOSE_3PLUS')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Percent of 60-day follow-up cases with inadequate stool", table_name = "IndicatorValue('FUP_INSA_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Percent of cases not classified", table_name = "IndicatorValue('UNCLASS_CASES_PERCENT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Percent of cases w/ adeq stools specimens (condition+timeliness)", table_name = "IndicatorValue('NPAFP_SA_WithStoolCond')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Percent of cases with two specimens within 14 days of onset", table_name = "IndicatorValue('NPAFP_SA')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Reported circulating VDPV environmental samples count (all serotypes)", table_name = "IndicatorValue('ENV_cVDPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Reported Wild environmental samples count", table_name = "IndicatorValue('ENV_WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: SIA bOPV campaigns", table_name = "IndicatorValue('SIA_BOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: SIA mOPV campaigns", table_name = "IndicatorValue('SIA_MOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: SIA planned since last case", table_name = "IndicatorValue('SIA_LASTCASE_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: SIA tOPV campaigns", table_name = "IndicatorValue('SIA_TOPV')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Total SIA campaigns", table_name = "IndicatorValue('SIA_OPVTOT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Wild poliovirus case count", table_name = "IndicatorValue('WPV_COUNT')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
+    # c(table_name_descriptive = "Indicator: Wild poliovirus case count - Reporting", table_name = "IndicatorValue('WPV_COUNT_REPORTING')", field_name = "LastCalculationDateTime", id_vars ="RowID", download_size = 1000),
     c(table_name_descriptive = "Lab Specimen", table_name = "LabSpecimen", field_name = "LastUpdateDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "LQAS", table_name = "Lqas", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Population", table_name = "Population", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityCategories", table_name = "RefData('ActivityCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityDeletionReason", table_name = "RefData('ActivityDeletionReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityPhases", table_name = "RefData('ActivityPhases')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityPriorities", table_name = "RefData('ActivityPriorities')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityStatuses", table_name = "RefData('ActivityStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ActivityTypes", table_name = "RefData('ActivityTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: AdditionalInterventions", table_name = "RefData('AdditionalInterventions')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: AgeGroups", table_name = "RefData('AgeGroups')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: AllocationStatuses", table_name = "RefData('AllocationStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: AwardTypes", table_name = "RefData('AwardTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CalendarTypes", table_name = "RefData('CalendarTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CaseClassification", table_name = "RefData('CaseClassification')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Categories", table_name = "RefData('Categories')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CategoryValues", table_name = "RefData('CategoryValues')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CellCultureResultsLRarm", table_name = "RefData('CellCultureResultsLRarm')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CellCultureResultsRLRarm", table_name = "RefData('CellCultureResultsRLRarm')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Channels", table_name = "RefData('Channels')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ContactIsolatedVdpv", table_name = "RefData('ContactIsolatedVdpv')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ContactIsolatedWild", table_name = "RefData('ContactIsolatedWild')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ContributionFlexibility", table_name = "RefData('ContributionFlexibility')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ContributionStatuses", table_name = "RefData('ContributionStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: CostCenters", table_name = "RefData('CostCenters')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Currencies", table_name = "RefData('Currencies')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Datasets", table_name = "RefData('Datasets')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: DateTag", table_name = "RefData('DateTag')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: DelayReason", table_name = "RefData('DelayReason')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: DiagnosisFinal", table_name = "RefData('DiagnosisFinal')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: DocumentCategories", table_name = "RefData('DocumentCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: EmergenceGroups", table_name = "RefData('EmergenceGroups')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: FinalCellCultureResultAfp", table_name = "RefData('FinalCellCultureResultAfp')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: FinalCellCultureResultLab", table_name = "RefData('FinalCellCultureResultLab')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: FinalITDResults", table_name = "RefData('FinalITDResults')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: FollowupFindings", table_name = "RefData('FollowupFindings')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: FundingPhases", table_name = "RefData('FundingPhases')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Genders", table_name = "RefData('Genders')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Genotypes", table_name = "RefData('Genotypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Geolevels", table_name = "RefData('Geolevels')", field_name = "None", id_vars ="Id", download_size = 1000),
-    ## c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed because API documentation states there is no data for this table
-    c(table_name_descriptive = "Reference Data: IndependentMonitoringReasons", table_name = "RefData('IndependentMonitoringReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: IndependentMonitoringSources", table_name = "RefData('IndependentMonitoringSources')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: IndicatorCategories", table_name = "RefData('IndicatorCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: IntratypeLab", table_name = "RefData('IntratypeLab')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Intratypes", table_name = "RefData('Intratypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: LQASClassifications", table_name = "RefData('LQASClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: LQASDenominators", table_name = "RefData('LQASDenominators')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: LQASThresholds", table_name = "RefData('LQASThresholds')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Methodologies", table_name = "RefData('Methodologies')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Objectives", table_name = "RefData('Objectives')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Outbreaks", table_name = "RefData('Outbreaks')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ParalysisSite", table_name = "RefData('ParalysisSite')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: PartialInclusionReason", table_name = "RefData('PartialInclusionReason')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: PopulationSources", table_name = "RefData('PopulationSources')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: PosNeg", table_name = "RefData('PosNeg')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityCategories", table_name = "RefData('ActivityCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityDeletionReason", table_name = "RefData('ActivityDeletionReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityPhases", table_name = "RefData('ActivityPhases')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityPriorities", table_name = "RefData('ActivityPriorities')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityStatuses", table_name = "RefData('ActivityStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ActivityTypes", table_name = "RefData('ActivityTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: AdditionalInterventions", table_name = "RefData('AdditionalInterventions')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: AgeGroups", table_name = "RefData('AgeGroups')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: AllocationStatuses", table_name = "RefData('AllocationStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: AwardTypes", table_name = "RefData('AwardTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CalendarTypes", table_name = "RefData('CalendarTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CaseClassification", table_name = "RefData('CaseClassification')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Categories", table_name = "RefData('Categories')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CategoryValues", table_name = "RefData('CategoryValues')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CellCultureResultsLRarm", table_name = "RefData('CellCultureResultsLRarm')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CellCultureResultsRLRarm", table_name = "RefData('CellCultureResultsRLRarm')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Channels", table_name = "RefData('Channels')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ContactIsolatedVdpv", table_name = "RefData('ContactIsolatedVdpv')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ContactIsolatedWild", table_name = "RefData('ContactIsolatedWild')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ContributionFlexibility", table_name = "RefData('ContributionFlexibility')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ContributionStatuses", table_name = "RefData('ContributionStatuses')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: CostCenters", table_name = "RefData('CostCenters')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Currencies", table_name = "RefData('Currencies')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Datasets", table_name = "RefData('Datasets')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: DateTag", table_name = "RefData('DateTag')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: DelayReason", table_name = "RefData('DelayReason')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: DiagnosisFinal", table_name = "RefData('DiagnosisFinal')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: DocumentCategories", table_name = "RefData('DocumentCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: EmergenceGroups", table_name = "RefData('EmergenceGroups')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: FinalCellCultureResultAfp", table_name = "RefData('FinalCellCultureResultAfp')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: FinalCellCultureResultLab", table_name = "RefData('FinalCellCultureResultLab')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: FinalITDResults", table_name = "RefData('FinalITDResults')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: FollowupFindings", table_name = "RefData('FollowupFindings')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: FundingPhases", table_name = "RefData('FundingPhases')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Genders", table_name = "RefData('Genders')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Genotypes", table_name = "RefData('Genotypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Geolevels", table_name = "RefData('Geolevels')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # ## c(table_name_descriptive = "Reference Data: ImportationEvents", table_name = "RefData('ImportationEvents')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed because API documentation states there is no data for this table
+    # c(table_name_descriptive = "Reference Data: IndependentMonitoringReasons", table_name = "RefData('IndependentMonitoringReasons')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: IndependentMonitoringSources", table_name = "RefData('IndependentMonitoringSources')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: IndicatorCategories", table_name = "RefData('IndicatorCategories')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: IntratypeLab", table_name = "RefData('IntratypeLab')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Intratypes", table_name = "RefData('Intratypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: LQASClassifications", table_name = "RefData('LQASClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: LQASDenominators", table_name = "RefData('LQASDenominators')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: LQASThresholds", table_name = "RefData('LQASThresholds')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Methodologies", table_name = "RefData('Methodologies')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Objectives", table_name = "RefData('Objectives')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Outbreaks", table_name = "RefData('Outbreaks')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ParalysisSite", table_name = "RefData('ParalysisSite')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: PartialInclusionReason", table_name = "RefData('PartialInclusionReason')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: PopulationSources", table_name = "RefData('PopulationSources')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: PosNeg", table_name = "RefData('PosNeg')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: PreviousNumberOfDoses", table_name = "RefData('PreviousNumberOfDoses')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: ProgrammeAreas", table_name = "RefData('ProgrammeAreas')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: ReasonMissed", table_name = "RefData('ReasonMissed')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: ReasonVaccineRefused", table_name = "RefData('ReasonVaccineRefused')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Reports", table_name = "RefData('Reports')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ResultsElisa", table_name = "RefData('ResultsElisa')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ResultsPCR", table_name = "RefData('ResultsPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: ResultsRRTPCR", table_name = "RefData('ResultsRRTPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: RiskLevel", table_name = "RefData('RiskLevel')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SampleCondition", table_name = "RefData('SampleCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: Sectors", table_name = "RefData('Sectors')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SecurityStatus", table_name = "RefData('SecurityStatus')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SourceOfIsolate", table_name = "RefData('SourceOfIsolate')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SpecimenSampleType", table_name = "RefData('SpecimenSampleType')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SpecimenSource", table_name = "RefData('SpecimenSource')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: StoolCondition", table_name = "RefData('StoolCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: SurveillanceType", table_name = "RefData('SurveillanceType')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: UpdateType", table_name = "RefData('UpdateType')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Reports", table_name = "RefData('Reports')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ResultsElisa", table_name = "RefData('ResultsElisa')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ResultsPCR", table_name = "RefData('ResultsPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: ResultsRRTPCR", table_name = "RefData('ResultsRRTPCR')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: RiskLevel", table_name = "RefData('RiskLevel')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SampleCondition", table_name = "RefData('SampleCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: Sectors", table_name = "RefData('Sectors')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SecurityStatus", table_name = "RefData('SecurityStatus')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SourceOfIsolate", table_name = "RefData('SourceOfIsolate')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SpecimenSampleType", table_name = "RefData('SpecimenSampleType')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SpecimenSource", table_name = "RefData('SpecimenSource')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: StoolCondition", table_name = "RefData('StoolCondition')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: SurveillanceType", table_name = "RefData('SurveillanceType')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: UpdateType", table_name = "RefData('UpdateType')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: Vdpv2Clusters", table_name = "RefData('Vdpv2Clusters')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for Vdpv2Clusters reference data'
-    c(table_name_descriptive = "Reference Data: VdpvClassifications", table_name = "RefData('VdpvClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: VdpvClassifications", table_name = "RefData('VdpvClassifications')", field_name = "None", id_vars ="Id", download_size = 1000),
     ## c(table_name_descriptive = "Reference Data: VdpvSources", table_name = "RefData('VdpvSources')", field_name = "None", id_vars ="Id", download_size = 1000), #Removed for now, since API documentation states 'No data for VdpvSources reference data'
-    c(table_name_descriptive = "Reference Data: VirusTypes", table_name = "RefData('VirusTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: VirusWildType", table_name = "RefData('VirusWildTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Data: YesNo", table_name = "RefData('YesNo')", field_name = "None", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Sub Activity", table_name = "SubActivity", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: VirusTypes", table_name = "RefData('VirusTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: VirusWildType", table_name = "RefData('VirusWildTypes')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Reference Data: YesNo", table_name = "RefData('YesNo')", field_name = "None", id_vars ="Id", download_size = 1000),
+    # c(table_name_descriptive = "Sub Activity", table_name = "SubActivity", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Synonym", table_name = "Synonym", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Virus", table_name = "Virus", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "Historized Geoplace Names", table_name = "HistorizedGeoplaceNames", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
@@ -1011,1021 +977,40 @@ load_defaults <- function(){
     # c(table_name_descriptive = "Enviro Sample Sites", table_name = "EnviroSampleSites", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "IM LQAS Since 3 Years Done Planned SIAs", table_name = "ImLqasSince3YearsDonePlannedSIAs", field_name = "None", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "RefCluster", table_name = "RefCluster", field_name = "UpdatedDate", id_vars ="Id", download_size = 1000),
-    c(table_name_descriptive = "Reference Age Group Data", table_name = "RefAgeGroupData('AgeGroups')", field_name = "None", id_vars ="None", download_size = 1000),
+    # c(table_name_descriptive = "Reference Age Group Data", table_name = "RefAgeGroupData('AgeGroups')", field_name = "None", id_vars ="None", download_size = 1000),
     # c(table_name_descriptive = "PONS Store GR Environmental Samples", table_name = "PonsStoreGREnvironmentalSamples", field_name = "None", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "PONS Store GR Cases", table_name = "PonsStoreGRCases", field_name = "None", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "Outbreak SIAs", table_name = "OutbreakSias", field_name = "None", id_vars ="Id", download_size = 1000),
     # c(table_name_descriptive = "OprSopTracker", table_name = "OprSopTracker", field_name = "None", id_vars ="Id", download_size = 1000),
     c(table_name_descriptive = "Independent Monitoring", table_name = "Im", field_name = "None", id_vars ="Id", download_size = 1000)
-    ))
+  ))
   return(defaults)
 }
 
-prompt_user_input <- function(){
-  defaults <- load_defaults()
-  table_list <- c((defaults %>%
-                   filter(!grepl("Indicator", table_name) & !grepl("RefData", table_name)))$table_name_descriptive, "Indicator", "Reference Data")
-  indicator_list <- (defaults %>%
-                      filter(grepl("Indicator", table_name) & !grepl("RefData", table_name)) %>%
-                      mutate(table_name_descriptive = str_remove(table_name_descriptive, "Indicator: ")))$table_name_descriptive
-  reference_list <- (defaults %>%
-                       filter(grepl("RefData", table_name)) %>%
-                       mutate(table_name_descriptive = str_remove(table_name_descriptive, "Reference Data: ")))$table_name_descriptive
-  table_input <- table_list[utils::menu(table_list, title="Select a POLIS table to download:")]
-  if(table_input == "Indicator"){
-    indicator_input <- paste0("Indicator: ", indicator_list[utils::menu(indicator_list, title="Select an Indicator to download:")])
-    table_defaults <- defaults %>%
-      filter(indicator_input == table_name_descriptive)
-  }
-  if(table_input == "Reference Data"){
-    reference_input <- paste0("Reference Data: ", reference_list[utils::menu(reference_list, title="Select a Reference Table to download:")])
-    table_defaults <- defaults %>%
-      filter(reference_input == table_name_descriptive)
-  }
-  if(!(table_input %in% c("Indicator", "Reference Data"))){
-    table_defaults <- defaults %>%
-      filter(table_input == table_name_descriptive)
-  }
-  return(table_defaults)
-  }
-
-get_polis_data <- function(folder = NULL,
-                           token = "",
-                           verbose=TRUE,
-                           dev = FALSE,
-                           check_for_deleted_rows = FALSE){
-  
-
-  #If folder location and token not provided, prompt user for input:
-  
-  if (is.null(folder) && interactive() && .Platform$OS.type == "windows"){
-    folder <- utils::choose.dir(default = getwd(), caption = "Select a folder where POLIS data will be saved:")
-  }
-  
-  #If folder structure and cache not created already, create them
-  init_polis_data_struc(folder=folder, token=token)
-    
-  #If token not provided, check for it in cache. 
-    if(load_specs()$polis$token == ""){
-      # If not in cache, if the token was provided as a function parameter, use that, else prompt for token entry
-        valid_token <- TRUE
-        if(token == ""){
-          token <- readline("Enter POLIS APIv2 Token: ")
-        }  
-        #Check if token is valid, stop if not
-        valid_token <- validate_token(token)
-        if(valid_token == FALSE){
-          stop("Invalid token.")
-        }
-    #save new token to specs yaml
-      specs_yaml <- file.path(folder,'cache_dir','specs.yaml')
-      specs <- read_yaml(file.path(folder,'cache_dir','specs.yaml'))
-      specs$polis$token <- token
-      write_yaml(specs, specs_yaml)
-      Sys.setenv("token" = token)
+#Call an individual URL until it succeeds or reaches a call limit
+#input: URL
+#output: API response
+call_url <- function(url,
+                     error_action = "STOP"){
+  status_code <- "x"
+  i <- 1
+  while(status_code != "200" & i < 10){
+    response <- NULL
+    response <- httr::GET(url, timeout(150))
+    if(is.null(response) == FALSE){
+      status_code <- as.character(response$status_code)
     }
-  
-  #Get default POLIS table names, field names, and download sizes
-  if(dev == TRUE){
-  # defaults <- load_defaults() %>%
-  #   filter(grepl("RefData", table_name) | table_name == "Lqas") #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
-    defaults <- load_defaults() %>%
-      filter(
-              # grepl("RefData", table_name) &
-             grepl("IndicatorValue", table_name) &
-             !(table_name %in% c("Activity", "Case", "Virus"))) #Note: This filter is in place for development purposes - to reduce the time needed for testing. Remove for final
-    
-  }
-  if(dev == FALSE){
-    defaults <- load_defaults()
-  }
-  
-  #run get_polis_table iteratively over all tables
-  
-  for(i in 1:nrow(defaults)){
-    table_name <- defaults$table_name[i]
-    field_name <- defaults$field_name[i]
-    id_vars <- defaults$id_vars[i]
-    download_size <- as.numeric(defaults$download_size[i])
-    table_name_descriptive <- defaults$table_name_descriptive[i]
-    print(paste0("Downloading ", table_name_descriptive," Table [", i,"/", nrow(defaults),"]"))
-    get_polis_table(folder = load_specs()$polis_data_folder,
-                    token = load_specs()$polis$token,
-                    table_name = table_name,
-                    field_name = field_name,
-                    id_vars = id_vars,
-                    download_size = download_size,
-                    table_name_descriptive = table_name_descriptive)
-  }
-  
-  cat(paste0("POLIS data have been downloaded/updated and are stored locally at ", folder, ".\n\nTo load all POLIS data please run load_raw_polis_data().\n\nTo review meta data about the cache run [load cache data function]\n"))
-}
-
-#Run a simple API call to check if the user-provided token is valid
-validate_token <- function(token = token){
-  my_url_test <-  paste0('https:/extranet.who.int/polis/api/v2/',
-                         'Case?',
-                     "$inlinecount=allpages&$top=0",
-                     '&token=',token) %>%
-                  httr::modify_url()
-  
-  result_test <- as.character(httr::GET(my_url_test)$status, timeout(150))
-  valid_token <- TRUE
-  if(result_test != "200"){
-    valid_token <- FALSE
-  }
-  return(valid_token)
-}
-
-#Function that moves the rds files in the polis_data folder to an archive folder
-archive_last_data <- function(table_name,
-                              archive_folder = NULL, #folder pathway where the datasets will be archived
-                              n_archive = 3 #Number of most-recent datasets to save in archive, per table
-){
-  #If archive_folder was not specified, then check if the default exists, if not then create it
-  if(is.null(archive_folder)){
-    archive_folder = file.path(load_specs()$polis_data_folder,"archive")
-    if(file.exists(archive_folder) == FALSE){
-      dir.create(archive_folder)
-    }
-  }
-  
-  #Get list of rds files to archive from polis_data_folder
-  # current_files <- list.files(load_specs()$polis_data_folder) %>%
-  #   stringr::str_subset(., pattern=".rds") %>%
-  #   stringr::str_remove(., pattern=".rds")
-  
-  current_files <- table_name #Revised to just the current file (i.e. table name) so that the archive function can be placed in get_polis_table() instead of get_polis_data()
-  
-  #for each item in current_files list, check if an archive subfolder exists, and if not then create it
-  # for(i in current_files){  
-  
-  if(file.exists(file.path(archive_folder, table_name)) == FALSE){
-    dir.create(file.path(archive_folder, table_name))
-  }
-  #for each item in current_files:
-  #delete the oldest file in it's subfolder if there are >= n_archive files in the subfolder
-  archive_list <- list.files(file.path(archive_folder, table_name)) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
-  
-  #if archive_list is not empty then get timestamps
-  if(length(archive_list) > 0){
-    archive_list_timestamp <- c()
-    for(j in archive_list){
-      timestamp <- as.POSIXct(file.info(file.path(archive_folder, table_name, paste0(j,".rds")))$ctime)
-      archive_list_timestamp <- as.POSIXct(c(archive_list_timestamp, timestamp), origin=lubridate::origin)
-    }
-    oldest_file <- (bind_cols(file=archive_list, timestamp=archive_list_timestamp) %>%
-                      mutate(timestamp   = as.POSIXct(timestamp)) %>%
-                      arrange(timestamp) %>%
-                      slice(1))$file %>%
-      paste0(., ".rds")
-  }
-  if(length(archive_list) >= n_archive){
-    file.remove(file.path(archive_folder, table_name, oldest_file))
-  }
-  
-  #write the current file to the archive subfolder
-  
-  if(file.exists(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))){
-    current_file_timestamp <- attr(readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds"))), which="updated")
-    current_file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
-    write_rds(current_file, file.path(archive_folder, table_name, paste0(table_name, "_", format(as.POSIXct(current_file_timestamp), "%Y%m%d_%H%M%S_"),".rds")))
-    #remove the current file from the main folder #Undid this as the current file is needed for append_and_save()
-    # file.remove(paste0(load_specs()$polis_data_folder, "/", i,".rds"))
-  }
- 
-}
-
-
-#data cleaning: standardize variable names by the following rules: [From: https:/cran.r-project.org/web/packages/janitor/vignettes/janitor.html]
-  # Parse letter cases and separators to a consistent format (e.g. snake_case)
-  # Remove leading/trailing/repeating spaces
-  # Replace special characters with alphanumeric (e.g. o to oe)
-  # Append numbers to duplicated names
-  # Convert '%' to 'percent' and '#' to number
-
-cleaning_var_names_initial <- function(input_dataframe = NULL,
-                                       case="snake"){
-  if(!is.null(input_dataframe)){
-  input_dataframe <- input_dataframe %>%
-    janitor::clean_names(case=case) %>%
-    rename_all(stringi::stri_trans_general,
-               id = "Latin-ASCII")
-  }
-  return(input_dataframe)
-}
-
-add_cache_attributes <- function(table_name){
-  #Get list of rds 
-  # current_files <- list.files(load_specs()$polis_data_folder) %>%
-  #   stringr::str_subset(., pattern=".rds") %>%
-  #   stringr::str_remove(., pattern=".rds") 
-  
-  #For each rds, read it in, assign attributes from cache, and save it
-    #get cache entry
-    cache_entry <- read_cache(.file_name = table_name)
-    #read in file
-    file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
-    #Assign attributes  
-    attributes(file)$created <- cache_entry$created
-    attributes(file)$date_field <- cache_entry$date_field
-    attributes(file)$file_name <- cache_entry$file_name
-    attributes(file)$file_type <- cache_entry$file_type
-    attributes(file)$latest_date <- cache_entry$latest_date
-    attributes(file)$updated <- cache_entry$updated
-    #Write file
-    write_rds(file, file.path(load_specs()$polis_data_folder, paste0(table_name,".rds")))
-}
-
-#data cleaning: re-assign classes to each variable by the following rules (applied in order): [From: https:/r4ds.had.co.nz/data-import.html]
-  # 1. logical: contains only "F", "T", "FALSE", or "TRUE"
-  # 2. integer: contains only numeric characters (and -).
-  # 3. double: contains only valid doubles (including numbers like 4.5e-5)
-  # 4. number: contains valid doubles with the grouping mark inside.
-  # 5. time: matches the default time_format
-  # 6. date: matches the default date_format
-  # 7. date-time: any ISO8601 date
-  # 8. If none of the above apply, then keep col as character.
-cleaning_var_class_initial <- function(input_dataframe = NULL){
-  if(!is.null(input_dataframe)){
-    #Get 3 sets of 1000 rows to use to guess classes and compare
-      #if <1000 rows, the full dataset will be used to guess classes (no need to compare)
-    if(nrow(input_dataframe) > 1000){
-    set1 <- input_dataframe %>%
-      #Sample 1000 rows at random 
-      sample_n(size=1000, replace=FALSE)
-    class_set1 <- set1 %>%
-      mutate_all( ~ guess_parser(.)) %>%
-      unique() 
-      
-    set2 <- input_dataframe %>%
-      head(1000)
-    class_set2 <- set2 %>%
-      mutate_all( ~ guess_parser(.)) %>%
-      unique() 
-    
-    set3 <- input_dataframe %>%
-      tail(1000)
-    class_set3 <- set3 %>%
-      mutate_all( ~ guess_parser(.)) %>%
-      unique() 
-    
-    class_set <- class_set1 %>%
-      bind_rows(class_set2) %>%
-      bind_rows(class_set3) %>%
-      unique()
-    
-    class_set_keep_character <- class_set %>%
-      summarise_all(n_distinct) %>%
-      t() %>%
-      as.data.frame() %>%
-      rename(number_of_class_guesses = V1) %>%
-      filter(number_of_class_guesses > 1)
-    
-    class_set_keep_character$var_name <- row.names(class_set_keep_character)
-    class_set <- class_set %>%
-      head(1) %>%
-      t() %>%
-      as.data.frame() %>%
-      rename(class = V1) 
-    
-    class_set$var_name <- row.names(class_set)
-    class_set <- class_set %>% 
-      mutate(class = ifelse(var_name %in% class_set_keep_character$var_name, "character", class))
-    rownames(class_set) = NULL
-    class_set <- class_set %>%
-      pivot_wider(names_from = var_name, values_from=class)
-    }
-    if(nrow(input_dataframe <= 1000)){
-      class_set <- input_dataframe %>%
-        mutate_all( ~ guess_parser(.)) %>%
-        unique() 
-    }
-    input_dataframe <- input_dataframe %>%
-      mutate_at(colnames(class_set), parse_guess) 
-    
-    #Convert POSIXct to date when no time info is available
-      posixct_dates <- input_dataframe %>%
-        select_if(is.POSIXct) %>%
-        mutate_all(., ~ifelse((strftime(as.POSIXlt(.), format="%H:%M:%S"))=="00:00:00", 0,1)) %>%
-        summarise_all(max, na.rm=TRUE) %>%
-        t() %>%
-        as.data.frame() %>%
-        rename(date_and_time = V1) %>%
-        filter(date_and_time == 0) %>%
-        t() %>%
-        colnames()
-      input_dataframe <- input_dataframe %>%
-        mutate_at(posixct_dates, as.Date)
-  }
-  return(input_dataframe)
-}
-
-#data cleaning: remove duplicates either across all vars, or a set of vars if specified by the user
-cleaning_dedup <- function(input_dataframe = NULL,
-                          dedup_vars = NULL #a vector of var names to deduplicate on
-                          ){
-  if(!is.null(input_dataframe)){
-      if(is.null(dedup_vars)){
-        input_dataframe <- input_dataframe %>%
-          distinct(across(everything()))
+    i <- i+1
+    if(i == 10){
+      if(error_action == "STOP"){
+        stop("Query halted. Repeated API call failure.")
       }
-    if(!is.null(dedup_vars)){
-      input_dataframe <- input_dataframe %>%
-        distinct(across(as.vector(dedup_vars)))
-    }
-  }
-  return(input_dataframe)
-}
-
-#data cleaning: remove empty rows and columns
-cleaning_remove_empty_rows <- function(input_dataframe = NULL){
-  if(!is.null(input_dataframe)){
-    input_dataframe <- input_dataframe %>%
-      janitor::remove_empty(which=c("rows"))
-  }
-  return(input_dataframe)
-}
-
-
-#data cleaning: rename from file
-cleaning_var_names_from_file <- function(table_name = NULL,
-                                         input_dataframe = NULL,
-                                         var_name_file = NULL,
-                                         desired_naming_convention = NULL){
-  if(is.null(var_name_file)){
-    #Check if file exists. if not, then create the folder and download the file
-    if(file.exists(file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds")) == FALSE){
-      if(file.exists(file.path(load_specs()$polis_data_folder, "datafiles")) == FALSE){
-        dir.create(file.path(load_specs()$polis_data_folder, "datafiles"))
-      }
-      var_name_synonyms <- read.csv("https:/raw.githubusercontent.com/nish-kishore/polis_api_etl/lbaertlein1-patch-1/datafiles/var_name_synonyms.rds?token=GHSAT0AAAAAABUCSLUVJW7PMDMWI37IARHYYVA4CHA")
-      write_rds(var_name_synonyms, file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds"))
-    }
-    var_name_synonyms <- readRDS(file.path(load_specs()$polis_data_folder, "datafiles", "var_name_synonyms.rds"))
-  }
-  if(!is.null(var_name_file)){
-    var_name_synonyms <- readRDS(var_name_file)
-  }
-
-  
-  table_var_name_synonyms <- var_name_synonyms %>%
-    filter(table_name == table_name) %>%
-    janitor::remove_empty(which=c("rows", "cols")) %>%
-    janitor::clean_names() %>%
-    select(-c("table_name"))
-  
-  if(is.null(desired_naming_convention)){
-    desired_naming_convention <- colnames(table_var_name_synonyms)[utils::menu(colnames(table_var_name_synonyms), title="Select a Variable Naming Convention:")]
-  }
-  original_to_desired <- var_name_synonyms %>%
-    select(original_var_name, {{desired_naming_convention}} )
-  for(i in 1:ncol(input_dataframe)){
-    original_name <- colnames(input_dataframe)[i]
-    new_name <- (original_to_desired %>%
-      filter(original_var_name == {{original_name}}))[1,2]
-    input_dataframe <- input_dataframe %>%
-      rename({{new_name}} := {{original_name}})
-  }
-  return(input_dataframe)
-}
-
-cleaning_var_class_from_metadata <- function(){
-  url <- 'https:/extranet.who.int/polis/api/v2/$metadata'
-  
-  nodes <- read_html(url, xpath = '/h3 | /*[contains(concat( " ", @class, " 
-" ), concat( " ", "entry-title", " " ))]')
-  
-  page <- htmlTreeParse(nodes)$children[["html"]][["body"]][["edmx"]][["dataservices"]][["schema"]] %>%
-    xmlToList(., simplify=TRUE, addAttributes = TRUE)
-  
-  metadata <- data.frame()
-  for(i in 1:(length(page)-1)){
-    table <- page[[i]][[".attrs"]][[1]]
-    for(j in 2:(length(page[[i]])-1)){
-      polis_name <- page[[i]][[j]][["name"]]
-      polis_type <- page[[i]][[j]][["type"]]
-      row <- c(table, polis_name, polis_type)
-      metadata <- rbind(metadata, row) %>%
-        rename(table = 1, polis_name = 2, polis_type = 3)
-      print(paste0(i, ", ", j))
-    }
-  }  
-  metadata <- metadata %>%
-    mutate(table = str_replace_all(table, "ApiV2", ""),
-           polis_type = str_replace_all(polis_type, "Edm.", ""),
-           class = case_when(polis_type %in% c("Boolean") ~ "logical",
-                             polis_type %in% c("DateTime") ~ "POSIXct",
-                             polis_type %in% c("Decimal", "Double", "Int16", "Int32", "Int64") ~ "numeric",
-                             polis_type %in% c("Guid", "String") ~ "character",
-                             TRUE ~ NA_character_))
-  return(metadata)
-}
-
-#data cleaning: convert all empty strings to NA
-cleaning_blank_to_na <- function(input_dataframe){
-  input_dataframe <- input_dataframe %>%
-    mutate_all(list(~str_trim(.))) %>% #remove all leading/trailing whitespaces as well as replace all " " with ""
-    mutate_all(list(~na_if(.,""))) #replace "" with NA
-}
-
-#data cleaning: replace all special characters with alphanumeric
-cleaning_replace_special <- function(input_dataframe){
-  #for each character variable, replace special characters
-  input_dataframe <- input_dataframe %>%
-    mutate_if(is.character, 
-              stringi::stri_trans_general,
-              id = "Latin-ASCII") 
-  return(input_dataframe)
-}
-
-clean_polis_data <- function(input_dataframe = NULL){
-  input_dataframe <- cleaning_var_names_initial(input_dataframe)
-  input_dataframe <- cleaning_var_class_initial(input_dataframe)
-  input_dataframe <- cleaning_remove_empty_rows(input_dataframe)
-  input_dataframe <- cleaning_blank_to_na(input_dataframe)
-  input_dataframe <- cleaning_replace_special(input_dataframe)
-  input_dataframe <- cleaning_dedup(input_dataframe)
-  input_dataframe <- cleaning_var_class_initial(input_dataframe) #running cleaning_var_class_initial a second time converts character to logical 
-  return(input_dataframe)
-}
-
-create_url_array_idvars_and_field_name <- function(table_name = table_name,
-                                                   id_vars = id_vars,
-                                                   field_name = field_name,
-                                                   min_date = min_date){
-  # construct general URL
-  filter_url_conv <- paste0("(",
-         date_min_conv(field_name, min_date),
-         ") or (",
-         date_null_conv(field_name), ")")
-    
-  my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
-                   paste0(table_name, "?"),
-                   "$filter=",
-                   if(filter_url_conv == "") "" else paste0(filter_url_conv),
-                   "&$select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
-                   # "&select=", paste0(paste(id_vars, collapse=","), ", ", field_name),
-                   # "&select=", paste0(paste(id_vars, collapse=",")),
-                   "&$inlinecount=allpages",
-                   '&token=',load_specs()$polis$token) %>%
-    httr::modify_url()
-  # Get table size
-  
-  response <- httr::GET(my_url, timeout(150))
-  
-  table_size <- response %>%
-    httr::content(type='text',encoding = 'UTF-8') %>%
-    jsonlite::fromJSON() %>%
-    {.$odata.count} %>%
-    as.integer()
-  # build URL array
-  prior_scipen <- getOption("scipen")
-  options(scipen = 999)
-  urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
-  options(scipen=prior_scipen)
-  return(urls)
-}
-
-create_url_array_id_section <- function(table_name = table_name,
-                                        id_section_table = id_section_table){
-  urls <- c()
-  for(i in id_section_table$filter_url_conv){
-    url <- paste0('https:/extranet.who.int/polis/api/v2/',
-                  paste0(table_name, "?"),
-                  '$filter=', 
-                  i,
-                  '&token=',load_specs()$polis$token) %>%
-      httr::modify_url()
-    urls <- c(urls, url)
-  }
-  return(urls)
-}
-create_url_array_id_method <- function(table_name,
-                            id_vars,
-                            field_name,
-                            min_date = min_date){
-  prior_scipen <- getOption("scipen")
-  options(scipen = 999)
-  
-  get_ids_for_url_array(table_name, id_vars, field_name, min_date)
-  id_list <- readRDS(file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
-  id_list2 <- id_list %>% 
-    select(id_vars) %>%
-    unique() %>%
-    mutate_all(as.numeric)
-  colnames(id_list2) <- c("Id")
-  id_list2 <- id_list2 %>%
-    arrange(Id) %>%
-    mutate(is_lag_sequential_fwd = ifelse(lag(Id) == Id -1, 1, 0)) %>%
-    mutate(is_lag_sequential_fwd = ifelse(is.na(is_lag_sequential_fwd), 0, is_lag_sequential_fwd)) %>%
-    arrange(desc(Id)) %>%
-    mutate(is_lag_sequential_rwd = ifelse(lag(Id) == Id + 1, 1, 0)) %>%
-    mutate(is_lag_sequential_rwd = ifelse(is.na(is_lag_sequential_rwd), 0, is_lag_sequential_rwd)) %>%
-    rowwise() %>%
-    mutate(flag = sum(is_lag_sequential_fwd, is_lag_sequential_rwd)) %>%
-    mutate(flag = ifelse(is.na(flag), 0, flag)) %>%
-    ungroup() 
-  individual_ids <- id_list2 %>%
-    filter(flag==0) %>%
-    mutate(start = Id, end = Id) %>%
-    select(start, end)
-
-  id_grps <- id_list2 %>%    
-    filter(flag == 1) %>%
-    select(Id) %>%
-    arrange(Id) %>%
-    mutate(x = ifelse(((row_number() %% 2) == 0), "end", "start")) %>%
-    mutate(grp = ifelse(x == "start", row_number(), lag(row_number()))) %>%
-    pivot_wider(id_cols= grp, names_from = x, values_from=Id) %>%
-    select(-grp) %>%
-    rbind(individual_ids) %>%
-    unique()
-  
-  for(i in 1:nrow(id_grps)){
-    min_id <- id_grps$start[i]
-    max_id <- id_grps$end[i]
-    break_list_start <- seq(min_id, max_id, by=1000)
-    break_list_end <- seq(min_id+999, max_id+999, by=1000)
-    if(i == 1){
-    id_section_table <- data.frame(start=break_list_start, end=break_list_end, min=min_id, max=max_id) %>%
-      mutate_all(as.numeric) %>%
-      rowwise() %>%
-      mutate(end = ifelse(end > max, max, end)) %>%
-      ungroup() %>%
-      mutate(filter_url_conv = paste0("((",id_vars," ge ", start, ") and (",id_vars," le ", end,"))"))
-    }
-    if(i != 1){
-      id_section_table <- id_section_table %>%
-        bind_rows(data.frame(start=break_list_start, end=break_list_end, min=min_id, max=max_id) %>%
-                    mutate_all(as.numeric) %>%
-                    rowwise() %>%
-                    mutate(end = ifelse(end > max, max, end)) %>%
-                    ungroup() %>%
-                    mutate(filter_url_conv = paste0("((",id_vars," ge ", start, ") and (",id_vars," le ", end,"))")))
-    }
-  }  
-  #create list of seq first to last by 1000
-    urls <- create_url_array_id_section(table_name, id_section_table)
-    options(scipen=prior_scipen)
-    return(urls)
-}
-
-check_if_id_exists <- function(table_name,
-                               id_vars = "Id"){
-  url <-  paste0('https:/extranet.who.int/polis/api/v2/',
-                        paste0(table_name, "?"),
-                        '$select=', 
-                        paste(id_vars, collapse=", "),
-                        '&token=',load_specs()$polis$token) %>%
-    httr::modify_url()
-  status <- as.character(httr::GET(url, timeout(150))$status_code)
-  id_exists <- ifelse(status=="200", TRUE, FALSE)
-  return(id_exists)
-}
-get_ids_for_url_array <- function(table_name,
-                                  id_vars,
-                                  field_name,
-                                  min_date = min_date){
-  urls <- create_url_array_idvars_and_field_name(table_name, id_vars, field_name, min_date)
-  query_output_list <- pb_mc_api_pull(urls)
-  id_list <- query_output_list[[1]]
-  id_list_failed_urls <- query_output_list[[2]]
-  id_list <- handle_failed_urls(id_list_failed_urls,
-                                     file.path(load_specs()$polis_data_folder, paste0(table_name,"_id_list_failed_urls.rds")),
-                                     id_list,
-                                     retry = TRUE,
-                                     save = TRUE)
-  write_rds(id_list, file.path(load_specs()$polis_data_folder,"id_list_temporary_file.rds"))
-}
-
-#Function that moves the rds files in the polis_data folder to an snapshot folder
-save_snapshot <- function(snapshot_folder = NULL, #folder pathway where the datasets will be saved
-                          snapshot_date = Sys.time()
-){
-  #If snapshot_folder was not specified, then check if the default exists, if not then create it
-  if(is.null(snapshot_folder)){
-    snapshot_folder = file.path(load_specs()$polis_data_folder,"snapshots")
-    if(file.exists(snapshot_folder) == FALSE){
-      dir.create(snapshot_folder)
-    }
-  }
-  
-  #Create snapshot subfolder
-  x <- gsub(":","", snapshot_date)
-  x <- gsub(" ","_", x)
-  x <- gsub("-","", x)
-  snapshot_subfolder <- file.path(snapshot_folder, paste0("snapshot_", x))
-  dir.create(snapshot_subfolder)
-  #Get list of rds files to save in snapshot from polis_data_folder
-  current_files <- list.files(load_specs()$polis_data_folder) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
-  
-  #for each item in current_files:
-  
-  #write the current file to the snapshot subfolder:
-  for(i in current_files){
-    write_rds(readRDS(file.path(load_specs()$polis_data_folder, paste0(i,".rds"))),
-              file.path(snapshot_subfolder, paste0(i,".rds")))
-  }
-}
-
-
-revert_from_archive <- function(last_good_date = Sys.Date()-1){
-  folder <- load_specs()$polis_data_folder
-  archive_folder <- file.path(load_specs()$polis_data_folder,"archive")
-  
-  #for each subfolder of archive_folder, get the file name/path of the most recent file created on/before last_good_date
-    #get directory of subfolders
-      subfolder_list <- list.files(archive_folder)
-    #for each item in subfolder_list, get all file names then subset to most recent
-      for(i in subfolder_list){
-        subfolder_files <- list.files(file.path(archive_folder, i))
-        file_dates <- c()
-        for(j in subfolder_files){
-          file_date <- attr(readRDS(file.path(archive_folder, i, j)),which="updated")
-          file_dates <- c(file_dates, file_date)
-        }
-        file_to_keep <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
-          mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
-          filter(create_date <= as.POSIXct(paste0(last_good_date, " 23:59:59"), format="%Y-%m-%d %H:%M:%S", origin = lubridate::origin)) %>%
-          arrange(desc(create_date)) %>%
-          slice(1))$name
-        #load file to keep
-        if(length(file_to_keep) > 0){
-        file_to_keep <- readRDS(file.path(archive_folder, i, file_to_keep))
-        #write file to keep to data folder
-        write_rds(file_to_keep, file.path(folder, paste0(i,".rds")))
-        }
-        if(length(file_to_keep) == 0){
-          warning(paste0("There is no ", i, " table with an acceptable date in the archive. Current file retained."))
-        }
-      }
-  #Update the cache to reflect the reverted files
-      update_cache_from_files()
-}
-
-update_cache_from_files <- function(){
-  #read in cache
-  cache <- readRDS(file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds')) 
-
-  #update the created, updated, and latest dates in the cache
-    #get list of rds files  
-      current_files <- list.files(load_specs()$polis_data_folder) %>%
-        stringr::str_subset(., pattern=".rds") %>%
-        stringr::str_remove(., pattern=".rds")
-    #For each rds, read its attributes, assign attributes to cache
-      for(i in current_files){  
-        #read attributes  
-        attr_created <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "created") 
-        attr_date_field <- attr(readRDS(file.path(load_specs()$polis_data_folder, paste0(i,".rds"))), which = "date_field") 
-        attr_file_type <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "file_type") 
-        attr_latest_date <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "latest_date") 
-        attr_updated <- attr(readRDS(file.path(load_specs()$polis_data_folder,paste0(i,".rds"))), which = "updated") 
-        cache <- cache %>%
-          mutate(created = as.POSIXct(ifelse(file_name == i, attr_created, created), format=("%Y-%m-%d %H:%M:%S"), origin = lubridate::origin),
-                 date_field = ifelse(file_name == i, attr_date_field, date_field),
-                 file_type = ifelse(file_name == i, attr_file_type, file_type),
-                 latest_date = as.Date(ifelse(file_name == i, attr_latest_date, latest_date), format=("%Y-%m-%d"), origin=lubridate::origin),
-                 updated = as.POSIXct(ifelse(file_name == i, attr_updated, updated), format=("%Y-%m-%d %H:%M:%S"), origin = lubridate::origin))
-      }
-      #Write revised cache
-      write_rds(cache, file.path(load_specs()$polis_data_folder, 'cache_dir','cache.rds'))
-}
-
-#for any table, pull just the idvars for a check for deletions in POLIS and a
-# a double-check for any additions in POLIS not captured by the date_field query
-
-create_url_array_idvars <- function(table_name = table_name,
-                                    id_vars = id_vars){
-  # construct general URL
-    my_url <- paste0('https:/extranet.who.int/polis/api/v2/',
-                   paste0(table_name, "?"),
-                   "$select=", paste(id_vars, collapse=","),
-                   "&$inlinecount=allpages",
-                   '&token=',load_specs()$polis$token) %>%
-    httr::modify_url()
-  # Get table size
-      my_url2 <- paste0('https:/extranet.who.int/polis/api/v2/',
-                         paste0(table_name, "?"),
-                         "$inlinecount=allpages",
-                         '&token=',load_specs()$polis$token,
-                         "&$top=0") %>%
-          httr::modify_url()
-    
-      status_code <- "x"
-      i <- 1
-      while(status_code != "200" & i < 10){
+      if(error_action == "RETURN NULL"){
         response <- NULL
-        response <- httr::GET(my_url2, timeout(150))
-        if(is.null(response) == FALSE){
-        status_code <- as.character(response$status_code)
-        }
-        i <- i+1
-        if(i == 10){
-          stop("Query halted. Repeated API call failure.")
-        }
-        Sys.sleep(10)
       }
-      rm(status_code)
-    
-     table_size <- response %>%
-                    httr::content(type='text',encoding = 'UTF-8') %>%
-                    jsonlite::fromJSON() %>%
-                    {.$odata.count} %>%
-                    as.integer()
-  # build URL array
-    urls <- paste0(my_url, "&$top=", as.numeric(1000), "&$skip=",seq(0,as.numeric(table_size), by = as.numeric(1000)))
-    return(urls)
-}
-
-get_idvars_only <- function(table_name,
-                            id_vars){
-  urls <- create_url_array_idvars(table_name, id_vars)
-  print("Checking for deleted Ids in the full table:")
-  query_start_time <- Sys.time()
-  query_output_list <- pb_mc_api_pull(urls)
-  query_output <- query_output_list[[1]]
-  if(is.null(query_output)){
-    query_output <- data.frame(matrix(nrow=0, ncol=0))
-  }
-  failed_urls <- query_output_list[[2]]
-  query_output <- handle_failed_urls(failed_urls,
-                                file.path(load_specs()$polis_data_folder, paste0(table_name,"_full_id_set_failed_urls.rds")),
-                                query_output,
-                                retry = TRUE,
-                                save = TRUE)
-  query_stop_time <- Sys.time()
-  query_time <- round(difftime(query_stop_time, query_start_time, units="auto"),0)
-  # print(paste0("Pulled all IdVars for ", table_name, " (", nrow(query_output), " rows in ", query_time, " ", attr(query_time, which="units"),")"))
-  return(query_output)
-}
-
-#function to remove the obs deleted from the POLIS table from the saved table
-find_and_remove_deleted_obs <- function(full_idvars_output,
-                                  new_complete_file,
-                                  id_vars){
-  id_vars <- as.vector(id_vars)
-  new_complete_file_idvars <- new_complete_file %>%
-    select(id_vars)
-  deleted_obs <- new_complete_file_idvars %>%
-    anti_join(full_idvars_output, by=id_vars)
-  new_complete_file <- new_complete_file %>%
-    anti_join(deleted_obs, by=id_vars)
-  return(new_complete_file)
-}
-
-compare_final_to_archive <- function(table_name,
-                                     id_vars,
-                                     categorical_max = 30){
-  id_vars <- as.vector(id_vars)
-  #Load new_file
-  new_file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
-
-  #load latest file in archive subfolder
-  archive_subfolder <- file.path(load_specs()$polis_data_folder, "archive", table_name)
-
-  #for each item in subfolder_list, get all file names then subset to most recent
-    subfolder_files <- list.files(paste0(archive_subfolder))
-    file_dates <- c()
-    for(j in subfolder_files){
-      file_date <- attr(readRDS(file.path(archive_subfolder, j)),which="updated")
-      file_dates <- c(file_dates, file_date)
     }
-    latest_file <- c()
-    if(length(subfolder_files)>0){
-    latest_file <- (bind_cols(name = subfolder_files, create_date = file_dates) %>%
-                       mutate(create_date = as.POSIXct(create_date, origin = lubridate::origin)) %>%
-                       arrange(desc(create_date)) %>%
-                       slice(1))$name
-    }
-    change_summary <- NULL
-    if(length(latest_file) > 0){
-      #load latest_file
-      latest_file <- readRDS(file.path(archive_subfolder, latest_file))
-
-      #get metadata for latest file and new_file
-      new_file_metadata <- get_polis_metadata(query_output = new_file,
-                         table_name = table_name,
-                         categorical_max = categorical_max)
-      old_file_metadata <- get_polis_metadata(query_output = latest_file,
-                                              table_name = table_name,
-                                              categorical_max = categorical_max)
-
-      change_summary <- metadata_comparison(new_file_metadata, old_file_metadata)[2:5]
-
-      #count obs added to new_file and get set
-      in_new_not_old <- new_file %>%
-        anti_join(latest_file, by=as.vector(id_vars))
-
-      #count obs removed from old_file and get set
-      in_old_not_new <- latest_file %>%
-        anti_join(new_file, by=as.vector(id_vars))
-
-      #count obs modified in new file compared to old and get set
-        in_new_and_old_but_modified <- new_file %>%
-          inner_join(latest_file, by=as.vector(id_vars)) %>%
-          #restrict to cols in new and old
-          select(id_vars, paste0(colnames(new_file %>% select(-id_vars)), ".x"), paste0(colnames(new_file %>% select(-id_vars)), ".y")) %>%
-          #wide_to_long
-          pivot_longer(cols=-id_vars) %>%
-          mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
-          mutate(name = str_sub(name, 1, -3)) %>%
-          #long_to_wide
-          pivot_wider(names_from=source, values_from=value, values_fn = list) %>%
-          mutate(new = paste(new, collapse=","),
-                 old = paste(old, collapse=",")) %>%
-          filter(new != old)
-      
-      #summary counts
-        n_added <- nrow(in_new_not_old)
-        n_edited <- nrow(in_new_and_old_but_modified %>%
-                      select(id_vars) %>%
-                      unique())
-        n_deleted <- nrow(in_old_not_new)
-        obs_change <- c(n_added = n_added,
-                        n_edited = n_edited, 
-                        n_deleted = n_deleted)
-        
-      #add summary to change_summary along with datasets
-      change_summary <- append(change_summary, 
-                             list(obs_change = obs_change, 
-                                  obs_added = in_new_not_old,
-                                  obs_edited = in_new_and_old_but_modified,
-                                  obs_deleted = in_old_not_new))
-          
-      }
-    return(change_summary)
-}
-
-save_change_summary <- function(table_name, 
-                                change_summary,
-                                change_log_folder = NULL,
-                                n_change_log = 30){
-  #If change_log_folder was not specified, then check if the default exists, if not then create it
-  if(is.null(change_log_folder)){
-    change_log_folder = file.path(load_specs()$polis_data_folder,"change_log")
-    if(file.exists(change_log_folder) == FALSE){
-      dir.create(change_log_folder)
-    }
+    if(status_code != "200"){Sys.sleep(10)}
   }
-  
-  #If change_log subfolder does not exist, then create it
-  change_log_subfolder = file.path(load_specs()$polis_data_folder,"change_log", table_name)
-  if(file.exists(change_log_subfolder) == FALSE){
-    dir.create(change_log_subfolder)
-  }
-  
-  #delete the oldest file in subfolder if there are >= n_change_log files in the subfolder
-  change_log_list <- list.files(change_log_subfolder) %>%
-    stringr::str_subset(., pattern=".rds") %>%
-    stringr::str_remove(., pattern=".rds")
-  change_log_list_timestamp <- c()
-  for(j in change_log_list){
-    timestamp <- as.POSIXct(file.info(file.path(change_log_subfolder, paste0(j,".rds")))$ctime)
-    change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
-  }
-  if(length(change_log_list) > 0){
-  oldest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
-                    mutate(timestamp   = as.POSIXct(timestamp)) %>%
-                    arrange(timestamp) %>%
-                    slice(1))$file %>%
-    paste0(., ".rds")
-  }
-  if(length(change_log_list) >= n_change_log){
-    file.remove(file.path(change_log_subfolder, oldest_file))
-  }
-  #write the current file to the archive subfolder
-  write_rds(change_summary, file.path(change_log_subfolder, paste0(table_name, "_change_log_", format(as.POSIXct(Sys.time()), "%Y%m%d_%H%M%S_"),".rds")))
-}
-
-#function which prints the latest change log into console
-print_latest_change_log_summary <- function(){
-  #load and combine latest change_log for all tables
-    #Check if change_log folder exists. If not, go to end.
-    change_log_folder <- file.path(load_specs()$polis_data_folder,"change_log")
-    if(file.exists(change_log_folder) == TRUE){
-      #Get list of subfolders
-      change_log_subfolder_list <- list.files(change_log_folder)
-      #Get list of latest file name within each change_log_subfolder
-      change_log_file_list <- c()
-      obs_change_combined <- data.frame()
-      class_changed_vars_combined <- data.frame()
-      new_response_combined <- data.frame()
-      lost_vars_combined <- data.frame()
-      new_vars_combined <- data.frame()
-      for(i in change_log_subfolder_list){
-        change_log_list <- c()
-        change_log_subfolder <- file.path(change_log_folder, i)
-        change_log_list <- list.files(change_log_subfolder) %>%
-          stringr::str_subset(., pattern=".rds") %>%
-          stringr::str_remove(., pattern=".rds")
-        change_log_list_timestamp <- c()  
-        for(j in change_log_list){
-          timestamp <- as.POSIXct(file.info(file.path(change_log_subfolder, paste0(j,".rds")))$ctime)
-          change_log_list_timestamp <- as.POSIXct(c(change_log_list_timestamp, timestamp), origin=lubridate::origin)
-        }
-        if(length(change_log_list) > 0){
-          newest_file <- (bind_cols(file=change_log_list, timestamp=change_log_list_timestamp) %>%
-                          mutate(timestamp   = as.POSIXct(timestamp)) %>%
-                          arrange(desc(timestamp)) %>%
-                          slice(1))$file %>%
-          paste0(., ".rds")
-          change_log <- readRDS(file.path(change_log_subfolder, newest_file))
-          new_response <- change_log$new_response %>%
-            mutate(table_name = i)
-          class_changed_vars <- change_log$class_changed_vars %>%
-            mutate(table_name = i)
-          if(length(change_log$lost_vars) > 0){
-          lost_vars <- c(i, paste(change_log$lost_vars, ","))
-          }
-          if(length(change_log$lost_vars) == 0){
-            lost_vars <- c()
-          }
-          if(length(change_log$lost_vars) > 0){
-            new_vars <- c(i, paste(change_log$new_vars, ","))
-          }
-          if(length(change_log$new_vars) == 0){
-            new_vars <- c()
-          }
-          obs_change <- as.data.frame(change_log$obs_change) 
-          obs_change$change <- rownames(obs_change)
-          obs_change <- obs_change %>%
-            pivot_wider(names_from = change, values_from=`change_log$obs_change`) %>%
-            mutate(table_name = i)
-          
-          obs_change_combined <- obs_change_combined %>%
-            bind_rows(obs_change)
-          class_changed_vars_combined <- class_changed_vars_combined %>%
-            bind_rows(class_changed_vars)
-          new_response_combined <- new_response_combined %>%
-            bind_rows(new_response)
-          lost_vars_combined <- lost_vars_combined %>%
-            rbind(lost_vars)
-          if(ncol(lost_vars_combined) == 2){colnames(lost_vars_combined) <- c("table_name", "lost_vars")}
-          new_vars_combined <- new_vars_combined %>%
-            rbind(new_vars)
-          if(ncol(new_vars_combined) == 2){colnames(new_vars_combined) <- c("table_name", "new_vars")}
-        }
-      }
-      #for each type of change, filter to where there are changes if needed
-      obs_change_combined %>%
-        rowwise() %>%
-        mutate(tot_change = sum(n_added, n_edited, n_deleted)) %>%
-        ungroup() %>%
-        filter(tot_change > 0) %>%
-        select(table_name, n_added, n_edited, n_deleted)
-      
-      #print summary of each type of change 
-      if(nrow(new_vars_combined) > 0){
-        print("New variables were found in the following tables:")
-        new_vars_combined
-      } else {print("No new variables were found in any table since last download.")}
-      
-      if(nrow(lost_vars_combined) > 0){
-        print("Variables were dropped from the following tables:")
-        lost_vars_combined
-      } else {print("No variables were dropped from any table since last download.")}
-      
-      if(nrow(new_response_combined) > 0){
-        print("New categorical responses were found in the following tables/variables:")
-        new_response_combined %>% select(table_name, var_name, in_new_not_old)
-      } else {print("No new categorical responses were found in any table since last download.")}
-      
-      if(nrow(class_changed_vars_combined) > 0){
-        print("Changes in variable classes were found in the following tables:")
-        class_changed_vars_combined %>% select(table_name, var_name, old_var_class, new_var_class)
-      } else {print("No changes in variable classes were found in any table since last download.")}
-      
-      if(nrow(obs_change_combined) > 0){
-        print("The following counts of observations were added/edited/deleted from each table since the last download:")
-        obs_change_combined
-      } else {print("No observation additions/edits/deletions were found in any table since last download.")}
-    }
-}
-
-handle_failed_urls <- function(failed_urls,
-                               failed_url_filename,
-                               query_output, 
-                               retry = TRUE, 
-                               save = TRUE){
-  if(length(failed_urls) > 0){
-    if(retry == TRUE){
-      retry_query_output_list <- pb_mc_api_pull(failed_urls)
-      retry_query_output <- retry_query_output_list[[1]]
-      if(is.null(retry_query_output)){
-        retry_query_output <- data.frame(matrix(nrow=0, ncol=0))
-      }
-      failed_urls <- retry_query_output_list[[2]]
-      query_output <- query_output %>% 
-        bind_rows(retry_query_output)
-    }
-    if(save == TRUE){
-      write_rds(failed_urls, failed_url_filename)
-    }
-  }
-  return(query_output)
+  rm(status_code)
+  return(response)
 }

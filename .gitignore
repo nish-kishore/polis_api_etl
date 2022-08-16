@@ -41,3 +41,4 @@ vignettes/*.pdf
 # local files
 spec/auth.yaml
 spec/config.yaml
+GetPOLIS/

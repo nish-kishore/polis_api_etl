@@ -25,7 +25,7 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
   change_summary <- NULL
   if(length(latest_file) > 0){
     #load latest_file
-    latest_file <- readRDS(file.path(archive_subfolder, latest_file))
+    latest_file <- readRDS(file.path(archive_subfolder, latest_file)) 
 
     #get metadata for latest file and new_file
     new_file_metadata <- get_polis_metadata(query_output = new_file,
@@ -47,14 +47,8 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
 
     #count obs modified in new file compared to old and get set
     in_new_and_old_but_modified <- new_file %>%
-      group_by(all_of(id_vars)) %>%
-      slice(1) %>%
-      ungroup() %>%
       select(-c(setdiff(colnames(new_file), colnames(latest_file)))) %>%
       setdiff(., latest_file %>%
-                group_by(all_of(id_vars)) %>%
-                slice(1) %>%
-                ungroup() %>%
                 select(-c(setdiff(colnames(latest_file), colnames(new_file)))))
     if(nrow(in_new_and_old_but_modified) > 0){
       in_new_and_old_but_modified <- in_new_and_old_but_modified %>%
@@ -67,8 +61,17 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
         mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
         mutate(name = str_sub(name, 1, -3)) %>%
         #long_to_wide
-        pivot_wider(names_from=source, values_from=value) %>%
-        filter(new != old)
+        pivot_wider(names_from=source, values_from=value)
+      
+      
+      if("new" %in% colnames(in_new_and_old_but_modified) &
+         "old" %in% colnames(in_new_and_old_but_modified)){
+        in_new_and_old_but_modified <- in_new_and_old_but_modified %>%
+          rowwise() %>%
+          mutate(new = paste(unlist(new),collapse=", ")) %>%
+          mutate(old = paste(unlist(old),collapse=", ")) %>%
+          filter(new != old)
+      }
     }
     if(nrow(in_new_and_old_but_modified) == 0){
       in_new_and_old_but_modified <- data.frame(matrix(ncol=4, nrow=0))

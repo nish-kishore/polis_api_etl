@@ -61,11 +61,17 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
         mutate(source = ifelse(str_sub(name, -2) == ".x", "new", "old")) %>%
         mutate(name = str_sub(name, 1, -3)) %>%
         #long_to_wide
-        pivot_wider(names_from=source, values_from=value) %>%
-        rowwise() %>%
-        mutate(new = paste(unlist(new),collapse=", ")) %>%
-        mutate(old = paste(unlist(old),collapse=", ")) %>%
-        filter(new != old)
+        pivot_wider(names_from=source, values_from=value)
+      
+      
+      if("new" %in% colnames(in_new_and_old_but_modified) &
+         "old" %in% colnames(in_new_and_old_but_modified)){
+        in_new_and_old_but_modified <- in_new_and_old_but_modified %>%
+          rowwise() %>%
+          mutate(new = paste(unlist(new),collapse=", ")) %>%
+          mutate(old = paste(unlist(old),collapse=", ")) %>%
+          filter(new != old)
+      }
     }
     if(nrow(in_new_and_old_but_modified) == 0){
       in_new_and_old_but_modified <- data.frame(matrix(ncol=4, nrow=0))

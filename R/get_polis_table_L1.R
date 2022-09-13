@@ -16,6 +16,7 @@
 #' @param table_name_descriptive  A string, descriptive name of the table requested
 #' @param check_for_deleted_rows  TRUE or FALSE, to trigger a check of the full POLIS table for any deleted rows since the last download
 #' @param replace_table TRUE or FALSE, to manually trigger a full re-download of the requested table
+#' @param show_edited_obs TRUE or FALSE, to manually turn on or off the check for edited rows and display of edits in change_log
 #'
 get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             token = load_specs()$polis$token,
@@ -25,7 +26,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             download_size = 1000,
                             table_name_descriptive = NULL,
                             check_for_deleted_rows = FALSE,
-                            replace_table = FALSE){
+                            replace_table = FALSE,
+                            show_edited_obs = TRUE){
   
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
@@ -142,7 +144,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #Get change summary comparing final file to latest archived file
   change_summary <- compare_final_to_archive(load_query_parameters()$table_name,
                                              load_query_parameters()$id_vars,
-                                             categorical_max = 30)
+                                             categorical_max = 30,
+                                             show_edited_obs = show_edited_obs)
   #Save change_summary to cache
   save_change_summary(table_name = load_query_parameters()$table_name, 
                       change_summary = change_summary,

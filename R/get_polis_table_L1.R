@@ -12,6 +12,10 @@
 #' @param table_name  A string, matching the POLIS name of the requested data table
 #' @param field_name  A string, the name of the variable in the requested data table used to filter API query
 #' @param id_vars     A vector of variables that, in combination, uniquely identify rows in the requested table
+#' @param download_size A value, the number of rows to pull in each URL call (max 1000)
+#' @param table_name_descriptive  A string, descriptive name of the table requested
+#' @param check_for_deleted_rows  TRUE or FALSE, to trigger a check of the full POLIS table for any deleted rows since the last download
+#' @param replace_table TRUE or FALSE, to manually trigger a full re-download of the requested table
 #'
 get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             token = load_specs()$polis$token,
@@ -20,7 +24,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                             id_vars = NULL,
                             download_size = 1000,
                             table_name_descriptive = NULL,
-                            check_for_deleted_rows = FALSE){
+                            check_for_deleted_rows = FALSE,
+                            replace_table = FALSE){
   
   #Create POLIS data folder structure if it does not already exist
   init_polis_data_struc(folder, token)
@@ -46,7 +51,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   #If a re-pull was indicated due to a field_name change, then reset the cache to initiate:
   polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
                             field_name = load_query_parameters()$field_name,
-                            re_pull_polis_indicator = field_name_change)
+                            re_pull_polis_indicator = field_name_change,
+                            replace_table = replace_table)
   #Create an array of API URLs
   urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,
                                     min_date = as.Date(load_query_parameters()$latest_date, origin=lubridate::origin),

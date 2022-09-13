@@ -84,6 +84,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
     re_pull_polis_indicator <- metadata_comparison(new_table_metadata = new_table_metadata,
                                                    old_table_metadata = old_table_metadata)$re_pull_polis_indicator
   }
+  if(replace_table = FALSE){
   polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
                             field_name = load_query_parameters()$field_name,
                             re_pull_polis_indicator = re_pull_polis_indicator,
@@ -98,6 +99,7 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
                                       method = NULL)
     query_output <- call_urls_combined(urls = urls,
                                        type = "re-pull")
+  }
   }
   
   #Combine the query output with the old dataset and save

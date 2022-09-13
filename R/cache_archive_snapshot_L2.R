@@ -236,7 +236,7 @@ update_cache_from_files <- function(){
 polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table_name,
                           field_name = load_query_parameters()$field_name,
                           re_pull_polis_indicator,
-                          replace_table){
+                          replace_table = replace_table){
   
   if(re_pull_polis_indicator == TRUE | replace_table ==TRUE){
     #delete cache entry

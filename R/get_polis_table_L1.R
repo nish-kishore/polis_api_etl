@@ -84,7 +84,8 @@ get_polis_table <- function(folder = load_specs()$polis_data_folder,
   }
   polis_re_pull_cache_reset(table_name = load_query_parameters()$table_name,
                             field_name = load_query_parameters()$field_name,
-                            re_pull_polis_indicator = re_pull_polis_indicator)
+                            re_pull_polis_indicator = re_pull_polis_indicator,
+                            replace_table = FALSE)
   
   if(re_pull_polis_indicator == TRUE){
     urls <- create_url_array_combined(table_name = load_query_parameters()$table_name,

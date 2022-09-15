@@ -66,10 +66,21 @@ create_url_array_combined <- function(table_name = load_query_parameters()$table
   filter_url_conv <- make_url_general(field_name, min_date)
   if(method == "skip_top"){
     if(field_name == "None"){
-      my_url_base <- paste0('https:/extranet.who.int/polis/api/v2/',
-                       paste0(table_name, "?"),
-                       "$inlinecount=allpages",
-                       '&token=',load_specs()$polis$token)
+      if(table_name != "Activity"){
+        my_url_base <- paste0('https:/extranet.who.int/polis/api/v2/',
+                              paste0(table_name, "?"),
+                              "&$inlinecount=allpages",
+                              # "$inlinecount=allpages",
+                              '&token=',load_specs()$polis$token)
+      }
+      if(table_name == "Activity"){
+        my_url_base <- paste0('https:/extranet.who.int/polis/api/v2/',
+                              paste0(table_name, "?"),
+                              "$select=select=Id,ActivityNumber,ActivityParentCode,ActivityDateFrom,ActivityType,WHORegion,Admin0Id,Admin0Name,ActivityAgeGroupCode,ActivityStatusCode,ActivityVaccineType,LqasDataLoaded,NbDoses,CountryPopulation,TargetPopulation,ActivityParentChildrenInaccessible,ActivityChildrenImmunized,ActivityParentLinkedOutbreaksList,Admin0TrendId,SIASubActivityCode,ActivityParentId,InitialPlannedDate,ActivityDateTo,IsPlannedDatesConfirmed,ISTName,CountryISO3Code,Admin0Guid,ActivityAgeGroup,ActivityStatus,ActivityAdditionalInterventions,IMDataLoaded,AreaPopulationPercent,AreaPopulation,PostCampaignImmunizedPercentage,ActivityChildrenInaccessible,LastUpdateDate,Admin0ShapeId",
+                              "&$inlinecount=allpages",
+                              # "$inlinecount=allpages",
+                              '&token=',load_specs()$polis$token)
+      }
     }
     #If there is a data filter, create a url with the date filter:
     if(field_name != "None"){

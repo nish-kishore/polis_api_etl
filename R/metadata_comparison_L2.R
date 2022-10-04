@@ -1,6 +1,7 @@
 compare_final_to_archive <- function(table_name = load_query_parameters()$table_name,
                                      id_vars = load_query_parameters()$id_vars,
-                                     categorical_max = 30){
+                                     categorical_max = 30,
+                                     show_edited_obs = TRUE){
   id_vars <- as.vector(id_vars)
   #Load new_file
   new_file <- readRDS(file.path(load_specs()$polis_data_folder, paste0(table_name, ".rds")))
@@ -44,7 +45,9 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
     #count obs removed from old_file and get set
     in_old_not_new <- latest_file %>%
       anti_join(new_file, by=as.vector(id_vars))
-
+    
+    in_new_and_old_but_modified <- data.frame(matrix(ncol=4, nrow=0))
+    if(show_edited_obs == TRUE){
     #count obs modified in new file compared to old and get set
     in_new_and_old_but_modified <- new_file %>%
       select(-c(setdiff(colnames(new_file), colnames(latest_file)))) %>%
@@ -72,6 +75,7 @@ compare_final_to_archive <- function(table_name = load_query_parameters()$table_
           mutate(old = paste(unlist(old),collapse=", ")) %>%
           filter(new != old)
       }
+    }
     }
     if(nrow(in_new_and_old_but_modified) == 0){
       in_new_and_old_but_modified <- data.frame(matrix(ncol=4, nrow=0))

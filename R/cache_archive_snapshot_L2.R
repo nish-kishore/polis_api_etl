@@ -235,9 +235,10 @@ update_cache_from_files <- function(){
 
 polis_re_pull_cache_reset <- function(table_name = load_query_parameters()$table_name,
                           field_name = load_query_parameters()$field_name,
-                          re_pull_polis_indicator){
+                          re_pull_polis_indicator,
+                          replace_table = replace_table){
   
-  if(re_pull_polis_indicator == TRUE){
+  if(re_pull_polis_indicator == TRUE | replace_table ==TRUE){
     #delete cache entry
     folder <- load_specs()$polis_data_folder
     cache_dir <- file.path(folder, "cache_dir")
